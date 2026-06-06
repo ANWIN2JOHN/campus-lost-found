@@ -1,12 +1,11 @@
 {
-<<<<<<< HEAD
   "name": "@figma/my-make-file",
   "private": true,
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "build": "vite build"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -70,47 +69,5 @@
     "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5"
-  },
-  "peerDependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
-  },
-  "pnpm": {
-    "overrides": {
-      "vite": "6.3.5"
-    }
-  },
-  "description": "This is a code bundle for campus lost &found_final. The original project is available at https://www.figma.com/design/nfT6psmt8JxWU5OI6iZR74/campus-lost--found_final.",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ANWIN2JOHN/campus-lost-found.git"
-=======
-  "name": "frontend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
->>>>>>> 8fb039c18dcea1fed16d2bca1875606894be7319
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-<<<<<<< HEAD
-  "bugs": {
-    "url": "https://github.com/ANWIN2JOHN/campus-lost-found/issues"
-  },
-  "homepage": "https://github.com/ANWIN2JOHN/campus-lost-found#readme"
-=======
-  "type": "commonjs"
->>>>>>> 8fb039c18dcea1fed16d2bca1875606894be7319
+  }
 }
