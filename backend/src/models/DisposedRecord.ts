@@ -2,11 +2,11 @@
  * Disposed Record Model (Historical)
  */
 
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, HydratedDocument } from "mongoose";
 import type { IDisposedRecord } from "../interfaces/index.js";
 import { ITEM_TYPE } from "../constants/index.js";
 
-interface IDisposedRecordDocument extends IDisposedRecord, Document {}
+type IDisposedRecordDocument = HydratedDocument<IDisposedRecord>;
 
 const disposedRecordSchema = new Schema<IDisposedRecordDocument>(
   {

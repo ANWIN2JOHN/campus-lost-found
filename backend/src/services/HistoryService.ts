@@ -2,12 +2,20 @@
  * Item History Service
  */
 
-import { ClaimedItem, DisposedRecord, LostItem, FoundItem } from "../models/index.js";
+import {
+  ClaimedItem,
+  DisposedRecord,
+  LostItem,
+  FoundItem,
+} from "../models/index.js";
+
 import { isItemExpired } from "../utils/countdown.js";
 import { ITEM_STATUS, PAGINATION } from "../constants/index.js";
+
 import type {
   IClaimedItem,
   IDisposedRecord,
+  ILostItem,
   IPaginatedResponse,
   IPaginationQuery,
 } from "../interfaces/index.js";
@@ -24,6 +32,7 @@ export class HistoryService {
 
     if (query.search) {
       const searchRegex = new RegExp(query.search, "i");
+
       filter.$or = [
         { itemName: searchRegex },
         { student: searchRegex },
@@ -58,21 +67,22 @@ export class HistoryService {
       status: ITEM_STATUS.NOT_RETURNED,
     });
 
-    // Filter items that are expired (not claimed within 60 days)
-    const lostAndNotFound = allLostItems.filter(
-      (item) => isItemExpired(item.dateLost)
+    const lostAndNotFound = allLostItems.filter((item) =>
+      isItemExpired(item.dateLost)
     );
 
-    // Apply search filter
     let filtered = lostAndNotFound;
+
     if (query.search) {
       const searchRegex = new RegExp(query.search, "i");
+
       filtered = lostAndNotFound.filter(
         (item) =>
           searchRegex.test(item.name) ||
           searchRegex.test(item.location) ||
-          (item.contact?.studentName &&
-            searchRegex.test(item.contact.studentName))
+          (item.contact?.studentName
+            ? searchRegex.test(item.contact.studentName)
+            : false)
       );
     }
 
@@ -99,6 +109,7 @@ export class HistoryService {
 
     if (query.search) {
       const searchRegex = new RegExp(query.search, "i");
+
       filter.$or = [
         { itemName: searchRegex },
         { reporter: searchRegex },
@@ -131,32 +142,48 @@ export class HistoryService {
       notes?: string;
     }
   ): Promise<void> {
-    const ItemModel = itemType === "Lost" ? LostItem : FoundItem;
-    const item = await ItemModel.findById(itemId);
+    let item: any;
+
+    if (itemType === "Lost") {
+      item = await LostItem.findById(itemId);
+    } else {
+      item = await FoundItem.findById(itemId);
+    }
 
     if (!item) {
       throw new Error(`${itemType} item not found`);
     }
 
-    // Create disposal record
     await DisposedRecord.create({
       itemName: item.name,
       itemType,
-      dateReported: itemType === "Lost" ? item.dateLost : item.dateFound,
-      location: itemType === "Lost" ? item.location : item.location,
+      dateReported:
+        itemType === "Lost"
+          ? item.dateLost
+          : item.dateFound,
+      location: item.location,
       reporter:
-        item.contact.studentName || item.contact.staffName || "Unknown",
+        item.contact?.studentName ||
+        item.contact?.staffName ||
+        "Unknown",
       reporterPhone:
-        item.contact.studentPhone || item.contact.staffPhone || "",
+        item.contact?.studentPhone ||
+        item.contact?.staffPhone ||
+        "",
       reporterEmail:
-        item.contact.studentEmail || item.contact.staffEmail || "",
+        item.contact?.studentEmail ||
+        item.contact?.staffEmail ||
+        "",
       disposalLocation: disposalData.disposalLocation,
       donatedTo: disposalData.donatedTo || "",
       disposedDate: new Date(),
-      notes: disposalData.notes,
+      notes: disposalData.notes || "",
     });
 
-    // Delete the item
-    await ItemModel.findByIdAndDelete(itemId);
+    if (itemType === "Lost") {
+      await LostItem.findByIdAndDelete(itemId);
+    } else {
+      await FoundItem.findByIdAndDelete(itemId);
+    }
   }
 }

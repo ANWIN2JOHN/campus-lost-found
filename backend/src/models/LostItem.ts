@@ -2,11 +2,11 @@
  * Lost Item Model
  */
 
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, HydratedDocument } from "mongoose";
 import type { ILostItem } from "../interfaces/index.js";
 import { ITEM_STATUS, CATEGORIES } from "../constants/index.js";
 
-interface ILostItemDocument extends ILostItem, Document {}
+type ILostItemDocument = HydratedDocument<ILostItem>;
 
 const contactSchema = new Schema(
   {

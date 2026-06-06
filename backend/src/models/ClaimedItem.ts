@@ -2,11 +2,11 @@
  * Claimed Item Model (Historical)
  */
 
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, HydratedDocument } from "mongoose";
 import type { IClaimedItem } from "../interfaces/index.js";
 import { ITEM_TYPE } from "../constants/index.js";
 
-interface IClaimedItemDocument extends IClaimedItem, Document {}
+type IClaimedItemDocument = HydratedDocument<IClaimedItem>;
 
 const claimedItemSchema = new Schema<IClaimedItemDocument>(
   {

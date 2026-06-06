@@ -2,11 +2,11 @@
  * User Model - Admin
  */
 
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, HydratedDocument } from "mongoose";
 import bcrypt from "bcryptjs";
 import type { IUser } from "../interfaces/index.js";
 
-interface IUserDocument extends IUser, Document {}
+type IUserDocument = HydratedDocument<IUser>;
 
 const userSchema = new Schema<IUserDocument>(
   {
@@ -53,7 +53,10 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.comparePassword = async function (
   enteredPassword: string
 ): Promise<boolean> {
-  return await bcrypt.compare(enteredPassword, this.password);
+  return bcrypt.compare(enteredPassword, this.password);
 };
 
-export const User = mongoose.model<IUserDocument>("User", userSchema);
+export const User = mongoose.model<IUserDocument>(
+  "User",
+  userSchema
+);

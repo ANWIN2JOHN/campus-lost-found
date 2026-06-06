@@ -2,11 +2,15 @@
  * Found Item Model
  */
 
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, HydratedDocument } from "mongoose";
 import type { IFoundItem } from "../interfaces/index.js";
-import { ITEM_STATUS, CATEGORIES, COLLECT_FROM_OPTIONS } from "../constants/index.js";
+import {
+  ITEM_STATUS,
+  CATEGORIES,
+  COLLECT_FROM_OPTIONS,
+} from "../constants/index.js";
 
-interface IFoundItemDocument extends IFoundItem, Document {}
+type IFoundItemDocument = HydratedDocument<IFoundItem>;
 
 const contactSchema = new Schema(
   {
