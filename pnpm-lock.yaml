@@ -131,9 +131,6 @@ importers:
       next-themes:
         specifier: 0.4.6
         version: 0.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react:
-        specifier: 18.3.1
-        version: 18.3.1
       react-day-picker:
         specifier: 8.10.1
         version: 8.10.1(date-fns@3.6.0)(react@18.3.1)
@@ -143,9 +140,6 @@ importers:
       react-dnd-html5-backend:
         specifier: 16.0.1
         version: 16.0.1
-      react-dom:
-        specifier: 18.3.1
-        version: 18.3.1(react@18.3.1)
       react-hook-form:
         specifier: 7.55.0
         version: 7.55.0(react@18.3.1)
