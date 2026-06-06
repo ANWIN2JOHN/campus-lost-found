@@ -1,6 +1,6 @@
 import type { BrowseItem } from "./data/appData";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://campus-lost-found-ghvc.onrender.com";
 
 function formatDateString(dateValue: string | Date): string {
   const date = new Date(dateValue);
