@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "@figma/my-make-file",
   "private": true,
   "version": "0.0.1",
@@ -92,12 +93,24 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ANWIN2JOHN/campus-lost-found.git"
+=======
+  "name": "frontend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+>>>>>>> 8fb039c18dcea1fed16d2bca1875606894be7319
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+<<<<<<< HEAD
   "bugs": {
     "url": "https://github.com/ANWIN2JOHN/campus-lost-found/issues"
   },
   "homepage": "https://github.com/ANWIN2JOHN/campus-lost-found#readme"
+=======
+  "type": "commonjs"
+>>>>>>> 8fb039c18dcea1fed16d2bca1875606894be7319
 }
