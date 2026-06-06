@@ -1,0 +1,40 @@
+{
+  "name": "campus-lost-and-found-backend",
+  "version": "1.0.0",
+  "description": "Production-ready backend for Campus Lost & Found system",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "lint": "eslint src --ext .ts",
+    "seed": "tsx src/scripts/seed.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mongoose": "^7.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1",
+    "helmet": "^7.0.0",
+    "cors": "^2.8.5",
+    "express-rate-limit": "^6.10.0",
+    "joi": "^17.11.0",
+    "multer": "^1.4.5-lts.1",
+    "cloudinary": "^1.40.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/express": "^4.17.20",
+    "@types/jsonwebtoken": "^9.0.3",
+    "@types/bcryptjs": "^2.4.2",
+    "@types/multer": "^1.4.8",
+    "typescript": "^5.2.2",
+    "tsx": "^3.14.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint": "^8.49.0"
+  }
+}

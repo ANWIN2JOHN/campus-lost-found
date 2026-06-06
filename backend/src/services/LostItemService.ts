@@ -1,0 +1,249 @@
+/**
+ * Lost Item Service
+ */
+
+import { LostItem, ClaimedItem } from "../models/index.js";
+import { NotFoundError, ValidationError } from "../utils/errors.js";
+import { getCountdownInfo, isItemExpired } from "../utils/countdown.js";
+import { ITEM_STATUS, PAGINATION } from "../constants/index.js";
+import type {
+  ILostItem,
+  IPaginatedResponse,
+  IPaginationQuery,
+  ICountdownInfo,
+} from "../interfaces/index.js";
+
+interface ReportLostItemInput {
+  name: string;
+  description: string;
+  category: string;
+  location: string;
+  dateLost: Date;
+  contactType: "student" | "staff";
+  studentName?: string;
+  rollNo?: string;
+  studentPhone?: string;
+  studentEmail?: string;
+  staffName?: string;
+  employeeId?: string;
+  department?: string;
+  staffPhone?: string;
+  staffEmail?: string;
+  imageUrl?: string;
+}
+
+export class LostItemService {
+  static async reportItem(data: ReportLostItemInput): Promise<ILostItem> {
+    const contact = this.buildContact(data);
+
+    const lostItem = new LostItem({
+      name: data.name,
+      description: data.description,
+      category: data.category,
+      location: data.location,
+      dateLost: data.dateLost,
+      contact,
+      imageUrl: data.imageUrl,
+    });
+
+    await lostItem.save();
+    return lostItem;
+  }
+
+  static async getItems(
+    query: IPaginationQuery
+  ): Promise<IPaginatedResponse<ILostItem & { countdownInfo: ICountdownInfo }>> {
+    const page = Math.max(1, query.page || 1);
+    const limit = query.limit || PAGINATION.BROWSE_PAGE_SIZE;
+    const skip = (page - 1) * limit;
+
+    // Build filter
+    const filter: any = { status: query.status || ITEM_STATUS.NOT_RETURNED };
+
+    if (query.category) {
+      filter.category = query.category;
+    }
+
+    if (query.location) {
+      filter.location = new RegExp(query.location, "i");
+    }
+
+    if (query.search) {
+      const searchRegex = new RegExp(query.search, "i");
+      filter.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { location: searchRegex },
+        { "contact.studentName": searchRegex },
+      ];
+    }
+
+    if (query.dateFrom || query.dateTo) {
+      filter.dateLost = {};
+      if (query.dateFrom) {
+        filter.dateLost.$gte = new Date(query.dateFrom);
+      }
+      if (query.dateTo) {
+        filter.dateLost.$lte = new Date(query.dateTo);
+      }
+    }
+
+    // Execute query
+    const items = await LostItem.find(filter)
+      .sort({ dateLost: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await LostItem.countDocuments(filter);
+
+    // Add countdown info
+    const itemsWithCountdown = items.map((item) => ({
+      ...item.toObject(),
+      countdownInfo: getCountdownInfo(item.dateLost),
+    }));
+
+    return {
+      data: itemsWithCountdown,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + limit < total,
+    };
+  }
+
+  static async getItemById(id: string): Promise<
+    ILostItem & { countdownInfo: ICountdownInfo }
+  > {
+    const item = await LostItem.findById(id);
+
+    if (!item) {
+      throw new NotFoundError("Lost item");
+    }
+
+    return {
+      ...item.toObject(),
+      countdownInfo: getCountdownInfo(item.dateLost),
+    };
+  }
+
+  static async updateStatus(
+    id: string,
+    status: string,
+    returnedBy?: string,
+    returnedRollNo?: string
+  ): Promise<ILostItem> {
+    const item = await LostItem.findByIdAndUpdate(
+      id,
+      {
+        status,
+        returnedBy,
+        returnedRollNo,
+        returnedDate: status === ITEM_STATUS.RETURNED ? new Date() : undefined,
+        returnedTime:
+          status === ITEM_STATUS.RETURNED
+            ? new Date().toLocaleTimeString()
+            : undefined,
+        lastUpdated: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!item) {
+      throw new NotFoundError("Lost item");
+    }
+
+    // If marked as returned, add to claimed items history
+    if (status === ITEM_STATUS.RETURNED) {
+      await ClaimedItem.create({
+        itemName: item.name,
+        itemType: "Lost",
+        student: returnedBy || "Unknown",
+        rollNo: returnedRollNo || "Unknown",
+        returnedDate: new Date(),
+      });
+    }
+
+    return item;
+  }
+
+  static async deleteItem(id: string): Promise<void> {
+    const result = await LostItem.findByIdAndDelete(id);
+
+    if (!result) {
+      throw new NotFoundError("Lost item");
+    }
+  }
+
+  static async getExpiredItems(): Promise<ILostItem[]> {
+    const items = await LostItem.find({
+      status: ITEM_STATUS.NOT_RETURNED,
+    });
+
+    return items.filter((item) => isItemExpired(item.dateLost));
+  }
+
+  static async getAdminItems(
+    query: IPaginationQuery
+  ): Promise<IPaginatedResponse<ILostItem>> {
+    const page = Math.max(1, query.page || 1);
+    const limit = query.limit || PAGINATION.ADMIN_DEFAULT_ROWS;
+    const skip = (page - 1) * limit;
+
+    // Build filter
+    const filter: any = {};
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    if (query.category) {
+      filter.category = query.category;
+    }
+
+    if (query.search) {
+      const searchRegex = new RegExp(query.search, "i");
+      filter.$or = [
+        { name: searchRegex },
+        { "contact.studentName": searchRegex },
+        { "contact.studentEmail": searchRegex },
+      ];
+    }
+
+    // Execute query
+    const items = await LostItem.find(filter)
+      .sort({ dateLost: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await LostItem.countDocuments(filter);
+
+    return {
+      data: items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + limit < total,
+    };
+  }
+
+  private static buildContact(data: ReportLostItemInput) {
+    const contact: any = { type: data.contactType };
+
+    if (data.contactType === "student") {
+      contact.studentName = data.studentName;
+      contact.rollNo = data.rollNo;
+      contact.studentPhone = data.studentPhone;
+      contact.studentEmail = data.studentEmail;
+    } else {
+      contact.staffName = data.staffName;
+      contact.employeeId = data.employeeId;
+      contact.department = data.department;
+      contact.staffPhone = data.staffPhone;
+      contact.staffEmail = data.staffEmail;
+    }
+
+    return contact;
+  }
+}
