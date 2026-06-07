@@ -133,8 +133,10 @@ export class LostItemService {
     returnedBy?: string,
     returnedRollNo?: string
   ): Promise<ILostItem> {
-    const item = await LostItem.findByIdAndUpdate(
-      id,
+    const mongoId = id.replace("LOST-", "");
+
+const item = await LostItem.findByIdAndUpdate(
+  mongoId,
       {
         status,
         returnedBy,
