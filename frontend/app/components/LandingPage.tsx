@@ -47,25 +47,43 @@ export default function LandingPage({ onBrowseLost, onAdminLogin }: LandingPageP
 
 useEffect(() => {
   Promise.all([
-    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/lost?limit=1000")
-      .then(r => r.json()),
-    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/found?limit=1000")
-      .then(r => r.json())
-  ])
-    .then(([lostData, foundData]) => {
-      console.log("LOST", lostData);
-      console.log("FOUND", foundData);
+    fetch(
+      "https://campus-lost-found-ghvc.onrender.com/api/items/lost?limit=1000&status=Not%20Returned"
+    ).then(r => r.json()),
 
-      const lostItems = lostData?.data?.data || [];
-      const foundItems = foundData?.data?.data || [];
+    fetch(
+      "https://campus-lost-found-ghvc.onrender.com/api/items/found?limit=1000&status=Not%20Returned"
+    ).then(r => r.json()),
+
+    fetch(
+      "https://campus-lost-found-ghvc.onrender.com/api/items/lost?limit=1000&status=Returned"
+    ).then(r => r.json()),
+
+    fetch(
+      "https://campus-lost-found-ghvc.onrender.com/api/items/found?limit=1000&status=Returned"
+    ).then(r => r.json()),
+  ])
+    .then(([lostActive, foundActive, lostReturned, foundReturned]) => {
+      const lostItems = lostActive?.data?.data || [];
+      const foundItems = foundActive?.data?.data || [];
+
+      const returnedLost = lostReturned?.data?.data || [];
+      const returnedFound = foundReturned?.data?.data || [];
 
       setStats({
-        total: lostItems.length + foundItems.length,
-        lost: lostItems.length,
-        found: foundItems.length,
+        total:
+          lostItems.length +
+          foundItems.length +
+          returnedLost.length +
+          returnedFound.length,
+
+        lost: lostItems.length + returnedLost.length,
+
+        found: foundItems.length + returnedFound.length,
+
         returned:
-          lostItems.filter((i: any) => i.status === "Returned").length +
-          foundItems.filter((i: any) => i.status === "Returned").length,
+          returnedLost.length +
+          returnedFound.length,
       });
     })
     .catch(console.error);
