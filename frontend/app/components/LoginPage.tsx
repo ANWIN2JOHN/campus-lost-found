@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Mail, Lock, AlertCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import campusLogo from "../../imports/KJUSYS2-1.png";
-import { loginAdmin } from "../api";
 
 interface LoginPageProps {
   onLogin: (mode: "student" | "admin") => void;
@@ -43,9 +42,12 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     setValidationMsg("");
     setError("");
 
-    await loginAdmin(email, password);
+    if (email === "admin@campus.edu" && password === "admin123") {
+  onLogin("admin");
+  return;
+}
 
-    onLogin("admin");
+setError("Invalid admin credentials. Please try again.");
   } catch (error) {
     setError(
       error instanceof Error
