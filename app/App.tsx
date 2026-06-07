@@ -13,18 +13,16 @@ import { CardNameTooltip } from "./components/CardNameTooltip";
 import ClaimCountdownBar from "./components/ClaimCountdownBar";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import campusLogo from "../imports/afa90946107debb396ffdb7284683a17-1.jpg";
-import { getBrowseItems } from "./api";
+import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem } from "./api";
 import {
-  lostItems,
-  foundItems,
   categories,
-  adminLostItems,
-  adminFoundItems,
-  claimedItems,
   collectFromOptions,
   getDaysInfo,
   parseDateForCountdown,
+  type AdminFoundItem,
+  type AdminLostItem,
   type BrowseItem,
+  type ReturnedHistoryRecord,
 } from "./data/appData";
 
 const LandingPage = lazy(() => import("./components/LandingPage"));
@@ -33,7 +31,8 @@ const LoginPage = lazy(() => import("./components/LoginPage"));
 // ─── Helper Types ──────────────────────────────────────────────────────────
 
 export type ReturnedLostRecord = {
-  id: number;
+  id: string;
+  type: "Lost" | "Found";
   name: string;
   reportedDate: string;
   closedDate: string;
@@ -46,7 +45,7 @@ export type ReturnedLostRecord = {
 };
 
 export type DisposedRecord = {
-  id: number;
+  id: string;
   name: string;
   type: "Lost" | "Found";
   reportedDate: string;
@@ -75,10 +74,11 @@ function Field({ label, required, children }: { label: string; required?: boolea
 }
 
 
-function UploadPage({ onBack }: { onBack: () => void }) {
+function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreated?: () => void | Promise<void> }) {
   const [itemType, setItemType] = useState<"lost" | "found">("found");
   const [contactType, setContactType] = useState<"student" | "staff">("student");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     name: "", location: "", date: "", collectFrom: "", description: "", image: "",
     studentName: "", rollNo: "", phone: "", email: "",
@@ -102,7 +102,41 @@ function UploadPage({ onBack }: { onBack: () => void }) {
     setForm({ name: "", location: "", date: "", collectFrom: "", description: "", image: "", studentName: "", rollNo: "", phone: "", email: "", staffName: "", employeeId: "", department: "", staffPhone: "", staffEmail: "" });
   };
 
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); setSubmitted(true); };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      await reportItem({
+        type: itemType,
+        name: form.name,
+        description: form.description,
+        category: "Others",
+        location: form.location,
+        date: form.date,
+        collectFrom: form.collectFrom,
+        contactType,
+        studentName: form.studentName,
+        rollNo: form.rollNo,
+        studentPhone: form.phone,
+        studentEmail: form.email,
+        staffName: form.staffName,
+        employeeId: form.employeeId,
+        department: form.department,
+        staffPhone: form.staffPhone,
+        staffEmail: form.staffEmail,
+      });
+      await onItemCreated?.();
+      setSubmitted(true);
+    } catch (error) {
+      toast.error("Unable to report item", {
+        description: error instanceof Error ? error.message : "Please check the Render API connection.",
+        duration: 4500,
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const contactName = isStudent ? form.studentName : form.staffName;
   const contactEmail = isStudent ? form.email : form.staffEmail;
@@ -424,11 +458,12 @@ function UploadPage({ onBack }: { onBack: () => void }) {
             </button>
             <button
               type="submit"
+              disabled={submitting}
               className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${btnClass}`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
               <Upload size={14} />
-              Report {isLost ? "Lost" : "Found"} Item
+              {submitting ? "Reporting..." : `Report ${isLost ? "Lost" : "Found"} Item`}
             </button>
           </div>
         </div>
@@ -535,25 +570,6 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
   const pageDescription = initialFilter === "lost"
     ? "Browse all lost items reported across campus."
     : "Browse all found items available for collection across campus.";
-
-  // Statistics derived from admin found items (complete dataset)
-  const totalFound = adminFoundItems.length;
-  const returnedCount = adminFoundItems.filter(i => i.status === "Returned").length;
-  const notReturnedItems = adminFoundItems.filter(i => i.status === "Not Returned");
-  const availableCount = notReturnedItems.filter(i => !getDaysInfo(i.dateFound).isExpired).length;
-  const expiringSoonCount = notReturnedItems.filter(i =>
-    ["expiring", "last10"].includes(getDaysInfo(i.dateFound).countdownStatus)
-  ).length;
-
-  const statsCards = useMemo(
-    () => [
-      { label: "Total Found Items", value: totalFound, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
-      { label: "Available for Collection", value: availableCount, dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
-      { label: "Expiring Soon", value: expiringSoonCount, dot: "bg-amber-500", card: "bg-amber-50 border-amber-200", txt: "text-amber-700" },
-      { label: "Returned Items", value: returnedCount, dot: "bg-violet-500", card: "bg-violet-50 border-violet-200", txt: "text-violet-700" },
-    ],
-    [totalFound, availableCount, expiringSoonCount, returnedCount]
-  );
 
   return (
     <div className="space-y-6">
@@ -1077,34 +1093,38 @@ function ReturnConfirmModal({
 
 // ─── Item History Page ─────────────────────────────────────────────────────
 
-function ItemHistoryPage({ foundItems, lostItems, disposedHistory, returnedLostHistory }: { foundItems: typeof adminFoundItems; lostItems: typeof adminLostItems; disposedHistory: DisposedRecord[]; returnedLostHistory: ReturnedLostRecord[] }) {
+function ItemHistoryPage({
+  foundAdminRecords,
+  lostAdminRecords,
+  disposedHistory,
+  returnedHistory,
+}: {
+  foundAdminRecords: AdminFoundItem[];
+  lostAdminRecords: AdminLostItem[];
+  disposedHistory: DisposedRecord[];
+  returnedHistory: ReturnedHistoryRecord[];
+}) {
   const [activeTab, setActiveTab] = useState<"returned" | "lost-not-found" | "disposed">("returned");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // Returned: seed records from claimedItems + dynamic records from Lost/Found
+  // Returned records come from the backend history endpoint plus current returned records.
   const returnedItems = [
-    ...claimedItems.map((i, idx) => ({
-      id: -(idx + 1), name: i.item, type: i.type as "Lost" | "Found",
-      reportedDate: i.returnedDate, closedDate: i.returnedDate,
-      studentName: i.student, rollNo: i.id, location: "—",
-      reporter: i.student, reporterPhone: "", reporterEmail: "",
-    })),
-    ...returnedLostHistory.map(i => ({
-      id: i.id, name: i.name, type: "Lost" as const,
+    ...returnedHistory.map(i => ({
+      id: i.id, name: i.name, type: i.type,
       reportedDate: i.reportedDate, closedDate: i.closedDate,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
       reporter: i.reporter, reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
     })),
-    ...lostItems.filter(i => i.status === "Returned").map(i => ({
+    ...lostAdminRecords.filter(i => i.status === "Returned").map(i => ({
       id: i.id, name: i.name, type: "Lost" as const,
       reportedDate: i.dateFound, closedDate: i.claimedDate || i.lastUpdated,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
       reporter: i.reporterName, reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
     })),
-    ...foundItems.filter(i => i.status === "Returned").map(i => ({
+    ...foundAdminRecords.filter(i => i.status === "Returned").map(i => ({
       id: i.id, name: i.name, type: "Found" as const,
       reportedDate: i.dateFound, closedDate: i.returnedDate || i.lastUpdated,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
@@ -1124,7 +1144,7 @@ function ItemHistoryPage({ foundItems, lostItems, disposedHistory, returnedLostH
 
   const filteredReturned = returnedItems.filter(r => filterRow(r, r.closedDate));
   // Lost & Not Found: lost items that expired (60+ days) and were never returned
-  const lostNotFoundItems = lostItems
+  const lostNotFoundRecords = lostAdminRecords
     .filter(i => i.status === "Not Returned" && getDaysInfo(i.dateFound).isExpired)
     .map(i => ({
       id: i.id, name: i.name, reportedDate: i.dateFound,
@@ -1133,7 +1153,7 @@ function ItemHistoryPage({ foundItems, lostItems, disposedHistory, returnedLostH
       daysElapsed: getDaysInfo(i.dateFound).daysElapsed,
     }));
 
-  const filteredLostNotFound = lostNotFoundItems.filter(r => {
+  const filteredLostNotFound = lostNotFoundRecords.filter(r => {
     const q = searchTerm.toLowerCase();
     return (!q || r.name.toLowerCase().includes(q) || r.location.toLowerCase().includes(q) || r.reporter.toLowerCase().includes(q));
   });
@@ -1163,7 +1183,7 @@ function ItemHistoryPage({ foundItems, lostItems, disposedHistory, returnedLostH
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
           { label: "Total Returned",    value: returnedItems.length,       dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
-          { label: "Lost & Not Found",  value: lostNotFoundItems.length,   dot: "bg-red-400",     card: "bg-red-50 border-red-200",         txt: "text-red-700" },
+          { label: "Lost & Not Found",  value: lostNotFoundRecords.length,   dot: "bg-red-400",     card: "bg-red-50 border-red-200",         txt: "text-red-700" },
           { label: "Disposed Items",    value: disposedHistory.length,     dot: "bg-gray-400",    card: "bg-gray-50 border-gray-200",       txt: "text-gray-600" },
           { label: "Found → Returned",  value: returnedItems.filter(r => r.type === "Found").length, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
         ].map((s, i) => (
@@ -1181,7 +1201,7 @@ function ItemHistoryPage({ foundItems, lostItems, disposedHistory, returnedLostH
       <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl shadow-sm w-fit mb-4">
         {([
           { id: "returned", label: `Returned (${returnedItems.length})`, color: "bg-emerald-500" },
-          { id: "lost-not-found", label: `Lost & Not Found (${lostNotFoundItems.length})`, color: "bg-red-500" },
+          { id: "lost-not-found", label: `Lost & Not Found (${lostNotFoundRecords.length})`, color: "bg-red-500" },
           { id: "disposed", label: `Disposed (${disposedHistory.length})`, color: "bg-gray-500" },
         ] as { id: "returned" | "lost-not-found" | "disposed"; label: string; color: string }[]).map(t => (
           <button
@@ -1249,11 +1269,11 @@ function ItemHistoryPage({ foundItems, lostItems, disposedHistory, returnedLostH
                 filteredLostNotFound.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No lost &amp; not found items yet. Lost items unclaimed after 60 days will appear here.</td></tr>
                 ) : filteredLostNotFound.map((item, i) => {
-                  const elapsed = Math.floor((new Date().getTime() - new Date(item.dateFound).getTime()) / 86400000);
+                  const elapsed = item.daysElapsed;
                   return (
                     <tr key={`lnf-${item.id}`} className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
                       <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{item.name}</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.dateFound}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reportedDate}</td>
                       <td className="px-4 py-3 text-gray-600 max-w-[120px]"><span className="truncate block">{item.location}</span></td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{elapsed}d</td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reporter || "—"}</td>
@@ -1305,17 +1325,17 @@ function ItemHistoryPage({ foundItems, lostItems, disposedHistory, returnedLostH
 const SOCIAL_CLUBS = ["NSS", "KCDC", "NCC", "Other"];
 
 function ExpiredItemsPage({
-  foundItems, lostItems, setFoundItems, setLostItems, onDispose,
+  foundAdminRecords, lostAdminRecords, setFoundAdminRecords, setLostAdminRecords, onDispose,
 }: {
-  foundItems: typeof adminFoundItems;
-  lostItems: typeof adminLostItems;
-  setFoundItems: React.Dispatch<React.SetStateAction<typeof adminFoundItems>>;
-  setLostItems: React.Dispatch<React.SetStateAction<typeof adminLostItems>>;
+  foundAdminRecords: AdminFoundItem[];
+  lostAdminRecords: AdminLostItem[];
+  setFoundAdminRecords: React.Dispatch<React.SetStateAction<AdminFoundItem[]>>;
+  setLostAdminRecords: React.Dispatch<React.SetStateAction<AdminLostItem[]>>;
   onDispose: (record: DisposedRecord) => void;
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("");
-  const [selectedItem, setSelectedItem] = useState<{ id: number; name: string; type: "Lost" | "Found"; reportedDate: string; location: string; reporter: string; reporterPhone: string; reporterEmail: string } | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{ id: string; name: string; type: "Lost" | "Found"; reportedDate: string; location: string; reporter: string; reporterPhone: string; reporterEmail: string } | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1324,11 +1344,11 @@ function ExpiredItemsPage({
   const [notes, setNotes] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const expiredFound = foundItems
+  const expiredFoundRecords = foundAdminRecords
     .filter(i => i.status === "Not Returned" && getDaysInfo(i.dateFound).isExpired)
     .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.dateFound, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.dateFound).daysElapsed }));
 
-  const allExpired = expiredFound
+  const allExpired = expiredFoundRecords
     .filter(i => {
       const q = searchTerm.toLowerCase();
       return !q || i.name.toLowerCase().includes(q) || i.location.toLowerCase().includes(q);
@@ -1368,9 +1388,9 @@ function ExpiredItemsPage({
       notes: notes.trim(),
     };
     if (selectedItem.type === "Found") {
-      setFoundItems(prev => prev.filter(i => i.id !== selectedItem.id));
+      setFoundAdminRecords(prev => prev.filter(i => i.id !== selectedItem.id));
     } else {
-      setLostItems(prev => prev.filter(i => i.id !== selectedItem.id));
+      setLostAdminRecords(prev => prev.filter(i => i.id !== selectedItem.id));
     }
     onDispose(record);
     closeModal();
@@ -1396,8 +1416,8 @@ function ExpiredItemsPage({
       {/* Summary bar */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         {[
-          { label: "Total Expired", value: expiredFound.length, cls: "bg-gray-50 border-gray-200", txt: "text-gray-700", dot: "bg-gray-500" },
-          { label: "Found Items", value: expiredFound.length, cls: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700", dot: "bg-emerald-500" },
+          { label: "Total Expired", value: expiredFoundRecords.length, cls: "bg-gray-50 border-gray-200", txt: "text-gray-700", dot: "bg-gray-500" },
+          { label: "Found Items", value: expiredFoundRecords.length, cls: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700", dot: "bg-emerald-500" },
         ].map((c, i) => (
           <div key={i} className={`border rounded-xl p-4 flex items-center gap-3 ${c.cls}`}>
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${c.dot}`} />
@@ -1837,14 +1857,14 @@ function AdminTablePagination({
   );
 }
 
-function LostItemsPage({ items, setItems, onReturn }: { items: typeof adminLostItems; setItems: React.Dispatch<React.SetStateAction<typeof adminLostItems>>; onReturn: (r: ReturnedLostRecord) => void }) {
-  const [editItem, setEditItem] = useState<typeof adminLostItems[0] | null>(null);
+function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void }) {
+  const [editItem, setEditItem] = useState<AdminLostItem | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editStudentName, setEditStudentName] = useState("");
   const [editRollNo, setEditRollNo] = useState("");
   const [editClaimedDate, setEditClaimedDate] = useState("");
-  const [pendingReturnItem, setPendingReturnItem] = useState<typeof adminLostItems[0] | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingReturnItem, setPendingReturnItem] = useState<AdminLostItem | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -1881,7 +1901,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: typeof adminLostI
     if (pendingDeleteId !== null) { setItems(items.filter(i => i.id !== pendingDeleteId)); setPendingDeleteId(null); }
   };
 
-  const handleEdit = (item: typeof adminLostItems[0]) => {
+  const handleEdit = (item: AdminLostItem) => {
     if (item.status === "Returned") return;
     setEditItem(item); setEditStatus(item.status);
     setEditStudentName(item.studentName || ""); setEditRollNo(item.rollNo || ""); setEditClaimedDate(item.claimedDate || "");
@@ -1909,6 +1929,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: typeof adminLostI
     const now = formatNow();
     onReturn({
       id: pendingReturnItem.id,
+      type: "Lost",
       name: pendingReturnItem.name,
       reportedDate: pendingReturnItem.dateFound,
       closedDate: now,
@@ -2123,9 +2144,9 @@ function formatNow(): string {
   return `${day} ${mon} ${year}, ${String(h).padStart(2, "0")}:${m} ${ampm}`;
 }
 
-function FoundItemsPage({ items, setItems, onReturn }: { items: typeof adminFoundItems; setItems: React.Dispatch<React.SetStateAction<typeof adminFoundItems>>; onReturn: (r: ReturnedLostRecord) => void }) {
-  const [editItem, setEditItem] = useState<typeof adminFoundItems[0] | null>(null);
-  const [pendingReturnItem, setPendingReturnItem] = useState<typeof adminFoundItems[0] | null>(null);
+function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]; setItems: React.Dispatch<React.SetStateAction<AdminFoundItem[]>>; onReturn: (r: ReturnedLostRecord) => void }) {
+  const [editItem, setEditItem] = useState<AdminFoundItem | null>(null);
+  const [pendingReturnItem, setPendingReturnItem] = useState<AdminFoundItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -2138,7 +2159,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: typeof adminFoun
   const [editReturnedTime, setEditReturnedTime] = useState("");
   const [editRemarks, setEditRemarks] = useState("");
 
-  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
@@ -2171,7 +2192,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: typeof adminFoun
     if (pendingDeleteId !== null) { setItems(items.filter(i => i.id !== pendingDeleteId)); setPendingDeleteId(null); }
   };
 
-  const openModal = (item: typeof adminFoundItems[0]) => {
+  const openModal = (item: AdminFoundItem) => {
     if (item.status === "Returned") return;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     setEditItem(item);
@@ -2221,6 +2242,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: typeof adminFoun
     const now = formatNow();
     onReturn({
       id: pendingReturnItem.id,
+      type: "Found",
       name: pendingReturnItem.name,
       reportedDate: pendingReturnItem.dateFound,
       closedDate: now,
@@ -2756,17 +2778,50 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Shared item state lifted here so pages can communicate
-  const [sharedFoundItems, setSharedFoundItems] = useState(adminFoundItems);
-  const [sharedLostItems, setSharedLostItems] = useState(adminLostItems);
+  const [sharedFoundItems, setSharedFoundItems] = useState<AdminFoundItem[]>([]);
+  const [sharedLostItems, setSharedLostItems] = useState<AdminLostItem[]>([]);
   const [disposedHistory, setDisposedHistory] = useState<DisposedRecord[]>([]);
-  const [returnedLostHistory, setReturnedLostHistory] = useState<ReturnedLostRecord[]>([]);
+  const [returnedHistory, setReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
+
+  const loadDashboardItems = async () => {
+    try {
+      const [lost, found] = await Promise.all([
+        getAdminLostItems(),
+        getAdminFoundItems(),
+      ]);
+
+      setSharedLostItems(lost);
+      setSharedFoundItems(found);
+    } catch (error) {
+      console.error("Failed to load live dashboard data", error);
+      toast.error("Unable to load live dashboard data", {
+        description: error instanceof Error ? error.message : "Please check the Render API connection.",
+        duration: 4500,
+      });
+    }
+  };
+
+  useEffect(() => {
+    async function loadItems() {
+      await loadDashboardItems();
+      try {
+        const history = await getHistory();
+        setReturnedHistory(history.returned);
+        setDisposedHistory(history.disposed);
+      } catch (error) {
+        console.error("Failed to load history data", error);
+      }
+    }
+
+    loadItems();
+  }, []);
 
   const handleDispose = (record: DisposedRecord) => {
     setDisposedHistory(prev => [record, ...prev]);
   };
 
   const handleReturn = (record: ReturnedLostRecord) => {
-    setReturnedLostHistory(prev => [record, ...prev]);
+    setReturnedHistory(prev => [record, ...prev]);
   };
 
   const handleNavChange = (page: string) => {
@@ -2779,7 +2834,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
 
   const renderMain = () => {
     if (activeNav === "upload-item") {
-      return <UploadPage onBack={() => setActiveNav("lost-items")} />;
+      return <UploadPage onBack={() => setActiveNav("lost-items")} onItemCreated={loadDashboardItems} />;
     }
     if (activeNav === "lost-items") {
       return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} />;
@@ -2790,16 +2845,16 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
     if (activeNav === "expired-items") {
       return (
         <ExpiredItemsPage
-          foundItems={sharedFoundItems}
-          lostItems={sharedLostItems}
-          setFoundItems={setSharedFoundItems}
-          setLostItems={setSharedLostItems}
+          foundAdminRecords={sharedFoundItems}
+          lostAdminRecords={sharedLostItems}
+          setFoundAdminRecords={setSharedFoundItems}
+          setLostAdminRecords={setSharedLostItems}
           onDispose={handleDispose}
         />
       );
     }
     if (activeNav === "history") {
-      return <ItemHistoryPage foundItems={sharedFoundItems} lostItems={sharedLostItems} disposedHistory={disposedHistory} returnedLostHistory={returnedLostHistory} />;
+      return <ItemHistoryPage foundAdminRecords={sharedFoundItems} lostAdminRecords={sharedLostItems} disposedHistory={disposedHistory} returnedHistory={returnedHistory} />;
     }
     if (activeNav === "guidelines") {
       return <GuidelinesPage />;
