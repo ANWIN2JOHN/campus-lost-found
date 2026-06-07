@@ -1859,7 +1859,8 @@ function AdminTablePagination({
 
 function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void }) {
   const [editItem, setEditItem] = useState<AdminLostItem | null>(null);
-  const [editStatus, setEditStatus] = useState("");
+  const [editStatus, setEditStatus] =
+  useState<"Not Returned" | "Returned">("Not Returned");
   const [editStudentName, setEditStudentName] = useState("");
   const [editRollNo, setEditRollNo] = useState("");
   const [editClaimedDate, setEditClaimedDate] = useState("");
@@ -1914,13 +1915,20 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
       setEditItem(null);
       return;
     }
-    setItems(items.map(item =>
-      item.id === editItem.id ? {
-        ...item, status: editStatus,
-        studentName: "", rollNo: "", claimedDate: "",
-        lastUpdated: formatNow(),
-      } : item
-    ));
+    setItems(
+  items.map(item =>
+    item.id === editItem.id
+      ? ({
+          ...item,
+          status: editStatus as "Not Returned" | "Returned",
+          studentName: "",
+          rollNo: "",
+          claimedDate: "",
+          lastUpdated: formatNow(),
+        } as AdminLostItem)
+      : item
+  )
+);
     setEditItem(null);
   };
 
@@ -2086,7 +2094,11 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
                 <label className="text-sm font-medium text-gray-700 block mb-2" style={{ fontFamily: "DM Sans, sans-serif" }}>Status <span className="text-red-400">*</span></label>
                 <select
                   value={editStatus}
-                  onChange={e => setEditStatus(e.target.value)}
+                  onChange={(e) =>
+                    setEditStatus(
+                      e.target.value as "Not Returned" | "Returned"
+                    )
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
@@ -2222,14 +2234,20 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
       return;
     }
     const now = formatNow();
-    setItems(prev => prev.map(item =>
-      item.id === editItem.id ? {
-        ...item,
-        status: editStatus,
-        studentName: "", rollNo: "", returnedDate: "",
-        lastUpdated: now,
-      } : item
-    ));
+    setItems(prev =>
+  prev.map(item =>
+    item.id === editItem.id
+      ? ({
+          ...item,
+          status: editStatus as "Not Returned" | "Returned",
+          studentName: "",
+          rollNo: "",
+          returnedDate: "",
+          lastUpdated: now,
+        } as AdminFoundItem)
+      : item
+  )
+);
     closeModal();
     toast.success("Item updated successfully", {
       description: `${editItem.name} status updated.`,
