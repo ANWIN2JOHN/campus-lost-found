@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Mail, Lock, AlertCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import campusLogo from "../../imports/KJUSYS2-1.png";
+import { loginAdmin } from "../api";
 
 interface LoginPageProps {
   onLogin: (mode: "student" | "admin") => void;
@@ -28,18 +29,31 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     setValidationMsg(validateEmail(val));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const emailErr = validateEmail(email);
-    if (emailErr) { setValidationMsg(emailErr); return; }
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  const emailErr = validateEmail(email);
+
+  if (emailErr) {
+    setValidationMsg(emailErr);
+    return;
+  }
+
+  try {
     setValidationMsg("");
     setError("");
-    if (email === "admin@campus.edu" && password === "admin123") {
-      onLogin("admin");
-      return;
-    }
-    setError("Invalid admin credentials. Please try again.");
-  };
+
+    await loginAdmin(email, password);
+
+    onLogin("admin");
+  } catch (error) {
+    setError(
+      error instanceof Error
+        ? error.message
+        : "Login failed"
+    );
+  }
+};
 
   const inputCls =
     "w-full pl-11 pr-4 py-3 text-sm bg-white border border-gray-200 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all";
