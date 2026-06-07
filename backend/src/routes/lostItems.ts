@@ -60,8 +60,6 @@ router.get(
  */
 router.put(
   "/:id",
-  verifyToken,
-  verifyAdmin,
   validateRequest(schemas.updateStatusSchema),
   catchAsync(LostItemController.updateStatus)
 );

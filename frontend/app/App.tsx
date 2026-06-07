@@ -13,7 +13,7 @@ import { CardNameTooltip } from "./components/CardNameTooltip";
 import ClaimCountdownBar from "./components/ClaimCountdownBar";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import campusLogo from "../imports/afa90946107debb396ffdb7284683a17-1.jpg";
-import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem } from "./api";
+import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem,updateItemStatus } from "./api";
 import {
   categories,
   collectFromOptions,
@@ -1932,29 +1932,51 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
     setEditItem(null);
   };
 
-  const confirmReturn = () => {
-    if (!pendingReturnItem) return;
+  const confirmReturn = async () => {
+  if (!pendingReturnItem) return;
+
+  try {
+    await updateItemStatus(
+      "found",
+      pendingReturnItem.id,
+      {
+        status: "Returned",
+        claimedBy: editStudentName,
+        claimedRollNo: editRollNo,
+      }
+    );
+
     const now = formatNow();
+
     onReturn({
       id: pendingReturnItem.id,
-      type: "Lost",
+      type: "Found",
       name: pendingReturnItem.name,
       reportedDate: pendingReturnItem.dateFound,
       closedDate: now,
       studentName: editStudentName,
       rollNo: editRollNo,
       location: pendingReturnItem.location,
-      reporter: pendingReturnItem.reporterName,
-      reporterPhone: pendingReturnItem.reporterPhone,
-      reporterEmail: pendingReturnItem.reporterEmail,
+      reporter: "",
+      reporterPhone: "",
+      reporterEmail: "",
     });
-    setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
+
+    setItems(prev =>
+      prev.filter(i => i.id !== pendingReturnItem.id)
+    );
+
     setPendingReturnItem(null);
-    toast.success("Item marked as Returned", {
-      description: `${pendingReturnItem.name} has been moved to Returned History.`,
-      duration: 3500,
-    });
-  };
+
+    toast.success("Item marked as Returned");
+  } catch (error) {
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : "Failed to update item"
+    );
+  }
+};
 
   return (
     <main className="flex-1 overflow-y-auto px-5 py-4 bg-gray-50">
@@ -2255,12 +2277,25 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
     });
   };
 
-  const confirmReturn = () => {
-    if (!pendingReturnItem) return;
+  const confirmReturn = async () => {
+  if (!pendingReturnItem) return;
+
+  try {
+    await updateItemStatus(
+      "lost",
+      pendingReturnItem.id,
+      {
+        status: "Returned",
+        returnedBy: editStudentName,
+        returnedRollNo: editRollNo,
+      }
+    );
+
     const now = formatNow();
+
     onReturn({
       id: pendingReturnItem.id,
-      type: "Found",
+      type: "Lost",
       name: pendingReturnItem.name,
       reportedDate: pendingReturnItem.dateFound,
       closedDate: now,
@@ -2271,13 +2306,22 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
       reporterPhone: "",
       reporterEmail: "",
     });
-    setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
+
+    setItems(prev =>
+      prev.filter(i => i.id !== pendingReturnItem.id)
+    );
+
     setPendingReturnItem(null);
-    toast.success("Item marked as Returned", {
-      description: `${pendingReturnItem.name} has been moved to Returned History.`,
-      duration: 3500,
-    });
-  };
+
+    toast.success("Item marked as Returned");
+  } catch (error) {
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : "Failed to update item"
+    );
+  }
+};
 
   const fLabel = "block text-xs font-semibold text-gray-600 mb-1.5";
   const fInput = "w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all";
