@@ -1937,14 +1937,15 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
 
   try {
     await updateItemStatus(
-      "found",
-      pendingReturnItem.id,
-      {
-        status: "Returned",
-        claimedBy: editStudentName,
-        claimedRollNo: editRollNo,
-      }
-    );
+  "lost",
+  pendingReturnItem.id,
+  {
+    status: "Returned",
+    returnedBy: editStudentName,
+    returnedRollNo: editRollNo,
+  }
+);
+
 
     const now = formatNow();
 
@@ -2282,14 +2283,16 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
 
   try {
     await updateItemStatus(
-      "lost",
-      pendingReturnItem.id,
-      {
-        status: "Returned",
-        returnedBy: editStudentName,
-        returnedRollNo: editRollNo,
-      }
-    );
+  "found",
+  pendingReturnItem.id,
+  {
+    status: "Returned",
+    claimedBy: editStudentName,
+    claimedRollNo: editRollNo,
+    claimedPhone: editPhone,
+    claimedEmail: editEmail,
+  }
+);
 
     const now = formatNow();
 
