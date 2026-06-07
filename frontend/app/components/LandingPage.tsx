@@ -47,12 +47,15 @@ export default function LandingPage({ onBrowseLost, onAdminLogin }: LandingPageP
 
 useEffect(() => {
   Promise.all([
-    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/lost")
+    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/lost?limit=1000")
       .then(r => r.json()),
-    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/found")
+    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/found?limit=1000")
       .then(r => r.json())
   ])
     .then(([lostData, foundData]) => {
+      console.log("LOST", lostData);
+      console.log("FOUND", foundData);
+
       const lostItems = lostData?.data?.data || [];
       const foundItems = foundData?.data?.data || [];
 
