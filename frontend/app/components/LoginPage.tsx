@@ -205,7 +205,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <p className="text-sm text-gray-700 leading-relaxed" style={{ fontFamily: "DM Sans, sans-serif" }}>
                   <span className="font-bold text-gray-800">Admin Credentials:</span><br />
                   Email: admin@campus.edu<br />
-                  Password: admin123
+                  Password: admin@12345
                 </p>
               )}
             </div>
