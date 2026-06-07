@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Search, Package, MapPin, ArrowRight, AlertCircle, ChevronDown } from "lucide-react";
 import collegeLogo from "../../imports/WhatsApp_Image_2026-06-01_at_10.51.49_AM.jpeg";
 import headerCenterImg from "../../imports/WhatsApp_Image_2026-06-01_at_11.03.14_AM.jpeg";
@@ -9,13 +9,6 @@ interface LandingPageProps {
   onAdminLogin: () => void;
 }
 
-const TOTAL = 32;
-const LOST = 16;
-const FOUND = 16;
-const RETURNED = 13;
-const LOST_PCT = Math.round((LOST / TOTAL) * 100);
-const FOUND_PCT = Math.round((FOUND / TOTAL) * 100);
-const RETURN_RATE = Math.round((RETURNED / TOTAL) * 100);
 
 function StatRing({ pct, color, label }: { pct: number; color: string; label: string }) {
   const r = 22;
@@ -36,12 +29,7 @@ function StatRing({ pct, color, label }: { pct: number; color: string; label: st
   );
 }
 
-const overviewStats = [
-  { ring: <StatRing pct={100} color="#0891b2" label="ALL" />, value: TOTAL, label: "Total Reported", labelColor: "text-slate-700", border: "border-slate-200" },
-  { ring: <StatRing pct={LOST_PCT} color="#f59e0b" label={`${LOST_PCT}%`} />, value: LOST, label: "Lost Items", labelColor: "text-amber-500", border: "border-amber-200" },
-  { ring: <StatRing pct={FOUND_PCT} color="#10b981" label={`${FOUND_PCT}%`} />, value: FOUND, label: "Found Items", labelColor: "text-emerald-500", border: "border-emerald-200" },
-  { ring: <StatRing pct={RETURN_RATE} color="#8b5cf6" label={`${RETURN_RATE}%`} />, value: RETURNED, label: "Returned", labelColor: "text-violet-500", border: "border-violet-200" },
-];
+
 
 const howItWorks = [
   { icon: <Search size={24} />, step: "01", title: "Search & Browse", desc: "Explore our database of lost and found items. Filter by location, date, and category.", g: "from-cyan-500 to-teal-600", bg: "from-cyan-50 to-teal-50", border: "border-cyan-100" },
@@ -50,6 +38,51 @@ const howItWorks = [
 ];
 
 export default function LandingPage({ onBrowseLost, onAdminLogin }: LandingPageProps) {
+  const [stats, setStats] = useState({
+  total: 0,
+  lost: 0,
+  found: 0,
+  returned: 0,
+});
+
+useEffect(() => {
+  Promise.all([
+    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/lost")
+      .then(r => r.json()),
+    fetch("https://campus-lost-found-ghvc.onrender.com/api/items/found")
+      .then(r => r.json())
+  ])
+    .then(([lostData, foundData]) => {
+      const lostItems = lostData?.data?.data || [];
+      const foundItems = foundData?.data?.data || [];
+
+      setStats({
+        total: lostItems.length + foundItems.length,
+        lost: lostItems.length,
+        found: foundItems.length,
+        returned:
+          lostItems.filter((i: any) => i.status === "Returned").length +
+          foundItems.filter((i: any) => i.status === "Returned").length,
+      });
+    })
+    .catch(console.error);
+}, []);
+
+const TOTAL = stats.total;
+const LOST = stats.lost;
+const FOUND = stats.found;
+const RETURNED = stats.returned;
+
+const LOST_PCT = TOTAL ? Math.round((LOST / TOTAL) * 100) : 0;
+const FOUND_PCT = TOTAL ? Math.round((FOUND / TOTAL) * 100) : 0;
+const RETURN_RATE = TOTAL ? Math.round((RETURNED / TOTAL) * 100) : 0;
+
+const overviewStats = [
+  { ring: <StatRing pct={100} color="#0891b2" label="ALL" />, value: TOTAL, label: "Total Reported", labelColor: "text-slate-700", border: "border-slate-200" },
+  { ring: <StatRing pct={LOST_PCT} color="#f59e0b" label={`${LOST_PCT}%`} />, value: LOST, label: "Lost Items", labelColor: "text-amber-500", border: "border-amber-200" },
+  { ring: <StatRing pct={FOUND_PCT} color="#10b981" label={`${FOUND_PCT}%`} />, value: FOUND, label: "Found Items", labelColor: "text-emerald-500", border: "border-emerald-200" },
+  { ring: <StatRing pct={RETURN_RATE} color="#8b5cf6" label={`${RETURN_RATE}%`} />, value: RETURNED, label: "Returned", labelColor: "text-violet-500", border: "border-violet-200" },
+];
   const statsRef = useRef<HTMLDivElement>(null);
 
   const scrollToStats = () => {
