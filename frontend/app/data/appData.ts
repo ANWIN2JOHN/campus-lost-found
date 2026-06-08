@@ -87,14 +87,14 @@ export type CountdownInfo = {
 };
 
 export const categories: CategoryStat[] = [
-  { name: "Bags & Backpacks", icon: "🎒", count: 0 },
-  { name: "Water Bottles", icon: "🍶", count: 0 },
-  { name: "Electronics", icon: "💻", count: 0 },
-  { name: "Books & Notebooks", icon: "📚", count: 0 },
-  { name: "Keys & Keychains", icon: "🔑", count: 0 },
-  { name: "Accessories", icon: "⌚", count: 0 },
-  { name: "Eyewear", icon: "🕶️", count: 0 },
-  { name: "Others", icon: "📦", count: 0 },
+  { name: "Bags & Backpacks", icon: "", count: 0 },
+  { name: "Water Bottles", icon: "", count: 0 },
+  { name: "Electronics", icon: "", count: 0 },
+  { name: "Books & Notebooks", icon: "", count: 0 },
+  { name: "Keys & Keychains", icon: "", count: 0 },
+  { name: "Accessories", icon: "", count: 0 },
+  { name: "Eyewear", icon: "", count: 0 },
+  { name: "Others", icon: "", count: 0 },
 ];
 
 export const collectFromOptions = ["Admin Reception", "Main Reception", "Humanities Reception"] as const;
