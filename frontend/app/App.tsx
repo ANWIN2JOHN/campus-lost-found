@@ -113,6 +113,13 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.date > getTodayDateString()) {
+      toast.error("Invalid date", {
+        description: "The date cannot be in the future.",
+        duration: 3500,
+      });
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -252,6 +259,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                   required
                   type="date"
                   value={form.date}
+                  max={getTodayDateString()}
                   onChange={set("date")}
                   className={inputCls}
                   style={{ colorScheme: "light", fontFamily: "DM Sans, sans-serif" }}

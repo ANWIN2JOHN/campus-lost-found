@@ -168,6 +168,17 @@ const overviewStats = [
                   </span>
                 </h1>
                 <p className="text-slate-500 text-base max-w-md" style={{ fontFamily: "DM Sans, sans-serif" }}>Browse all lost and found items reported across campus. Reuniting students with their belongings.</p>
+                <button
+                  onClick={onBrowseFound}
+                  className="mt-6 inline-flex items-center gap-2 px-7 py-3 rounded-full text-white font-semibold text-base shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-[1.03] active:scale-[0.98]"
+                  style={{
+                    fontFamily: "DM Sans, sans-serif",
+                    background: "linear-gradient(135deg, #5eadab 0%, #0891b2 100%)",
+                  }}
+                >
+                  Browse Items
+                  <ArrowRight size={18} />
+                </button>
               </div>
 
               {/* Campus Overview — moved here from section 2 */}
