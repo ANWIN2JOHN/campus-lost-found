@@ -37,6 +37,37 @@ function getTodayDateString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// ─── Input Validation Helpers ───────────────────────────────────────────────
+function validateEmail(email: string): string | null {
+  const trimmed = email.trim();
+  if (!trimmed) return "Email address is required.";
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(trimmed)) return "Please enter a valid email address.";
+  return null;
+}
+
+function validateName(name: string, fieldLabel: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return `${fieldLabel} is required.`;
+  if (trimmed.length < 2) return `${fieldLabel} must be at least 2 characters.`;
+  if (trimmed.length > 50) return `${fieldLabel} must not exceed 50 characters.`;
+  const nameRegex = /^[a-zA-Z\s'-]+$/;
+  if (!nameRegex.test(trimmed)) return `${fieldLabel} can only contain letters, spaces, hyphens, and apostrophes.`;
+  return null;
+}
+
+function validatePhone(phone: string, fieldLabel: string): string | null {
+  const trimmed = phone.trim();
+  if (!trimmed) return `${fieldLabel} is required.`;
+  const phoneRegex = /^\+?[0-9\s()-]+$/;
+  if (!phoneRegex.test(trimmed)) return `${fieldLabel} can only contain numbers, spaces, hyphens, parentheses, and a leading '+'.`;
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+    return `${fieldLabel} must contain between 7 and 15 digits.`;
+  }
+  return null;
+}
+
 // ─── Helper Types ──────────────────────────────────────────────────────────
 
 export type ReturnedLostRecord = {
@@ -120,27 +151,74 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       });
       return;
     }
+
+    const trimmedForm = {
+      studentName: form.studentName.trim(),
+      rollNo: form.rollNo.trim(),
+      phone: form.phone.trim(),
+      email: form.email.trim(),
+      staffName: form.staffName.trim(),
+      employeeId: form.employeeId.trim(),
+      department: form.department.trim(),
+      staffPhone: form.staffPhone.trim(),
+      staffEmail: form.staffEmail.trim(),
+    };
+
+    if (contactType === "student") {
+      const nameErr = validateName(trimmedForm.studentName, "Student Name");
+      if (nameErr) {
+        toast.error("Validation Error", { description: nameErr, duration: 4000 });
+        return;
+      }
+      const phoneErr = validatePhone(trimmedForm.phone, "Phone Number");
+      if (phoneErr) {
+        toast.error("Validation Error", { description: phoneErr, duration: 4000 });
+        return;
+      }
+      const emailErr = validateEmail(trimmedForm.email);
+      if (emailErr) {
+        toast.error("Validation Error", { description: emailErr, duration: 4000 });
+        return;
+      }
+    } else {
+      const nameErr = validateName(trimmedForm.staffName, "Staff Name");
+      if (nameErr) {
+        toast.error("Validation Error", { description: nameErr, duration: 4000 });
+        return;
+      }
+      const phoneErr = validatePhone(trimmedForm.staffPhone, "Phone Number");
+      if (phoneErr) {
+        toast.error("Validation Error", { description: phoneErr, duration: 4000 });
+        return;
+      }
+      const emailErr = validateEmail(trimmedForm.staffEmail);
+      if (emailErr) {
+        toast.error("Validation Error", { description: emailErr, duration: 4000 });
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
       await reportItem({
         type: itemType,
-        name: form.name,
-        description: form.description,
+        name: form.name.trim(),
+        description: form.description.trim(),
         category: form.category || "Others",
-        location: form.location,
+        location: form.location.trim(),
         date: form.date,
         collectFrom: form.collectFrom,
         contactType,
-        studentName: form.studentName,
-        rollNo: form.rollNo,
-        studentPhone: form.phone,
-        studentEmail: form.email,
-        staffName: form.staffName,
-        employeeId: form.employeeId,
-        department: form.department,
-        staffPhone: form.staffPhone,
-        staffEmail: form.staffEmail,
+        studentName: trimmedForm.studentName,
+        rollNo: trimmedForm.rollNo,
+        studentPhone: trimmedForm.phone,
+        studentEmail: trimmedForm.email.toLowerCase(),
+        staffName: trimmedForm.staffName,
+        employeeId: trimmedForm.employeeId,
+        department: trimmedForm.department,
+        staffPhone: trimmedForm.staffPhone,
+        staffEmail: trimmedForm.staffEmail.toLowerCase(),
       });
       await onItemCreated?.();
       setSubmitted(true);
@@ -690,7 +768,19 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
             <input
               type="date"
               value={dateFrom}
-              onChange={e => { setDateFrom(e.target.value); setCurrentPage(1); }}
+              max={getTodayDateString()}
+              onChange={e => {
+                const val = e.target.value;
+                if (val && val > getTodayDateString()) {
+                  toast.error("Invalid Date", {
+                    description: "Future dates are not allowed.",
+                    duration: 3500,
+                  });
+                  return;
+                }
+                setDateFrom(val);
+                setCurrentPage(1);
+              }}
               className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all"
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
@@ -1945,6 +2035,15 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
   const handleSaveEdit = () => {
     if (!editItem) return;
     if (editStatus === "Returned") {
+      const trimmedName = editStudentName.trim();
+      const nameErr = validateName(trimmedName, "Student Name");
+      if (nameErr) {
+        toast.error("Validation Error", { description: nameErr, duration: 4000 });
+        return;
+      }
+      setEditStudentName(trimmedName);
+      setEditRollNo(editRollNo.trim());
+
       setPendingReturnItem(editItem);
       setEditItem(null);
       return;
@@ -2252,6 +2351,32 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
   const handleSaveEdit = () => {
     if (!editItem || !isReturnValid) return;
     if (editStatus === "Returned") {
+      const trimmedName = editStudentName.trim();
+      const trimmedRoll = editRollNo.trim();
+      const trimmedPhone = editPhone.trim();
+      const trimmedEmail = editEmail.trim();
+
+      const nameErr = validateName(trimmedName, "Claimant Name");
+      if (nameErr) {
+        toast.error("Validation Error", { description: nameErr, duration: 4000 });
+        return;
+      }
+      const phoneErr = validatePhone(trimmedPhone, "Phone Number");
+      if (phoneErr) {
+        toast.error("Validation Error", { description: phoneErr, duration: 4000 });
+        return;
+      }
+      const emailErr = validateEmail(trimmedEmail);
+      if (emailErr) {
+        toast.error("Validation Error", { description: emailErr, duration: 4000 });
+        return;
+      }
+
+      setEditStudentName(trimmedName);
+      setEditRollNo(trimmedRoll);
+      setEditPhone(trimmedPhone);
+      setEditEmail(trimmedEmail.toLowerCase());
+
       setPendingReturnItem(editItem);
       closeModal();
       return;

@@ -35,6 +35,31 @@ export class FoundItemController {
       dateTo: req.query.dateTo as string,
     };
 
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    if (query.dateFrom) {
+      const fromDate = new Date(query.dateFrom);
+      if (!isNaN(fromDate.getTime()) && fromDate > today) {
+        res.status(400).json({
+          success: false,
+          message: "Future dates are not allowed",
+        });
+        return;
+      }
+    }
+
+    if (query.dateTo) {
+      const toDate = new Date(query.dateTo);
+      if (!isNaN(toDate.getTime()) && toDate > today) {
+        res.status(400).json({
+          success: false,
+          message: "Future dates are not allowed",
+        });
+        return;
+      }
+    }
+
     const result = await FoundItemService.getItems(query);
 
     res.status(200).json({
