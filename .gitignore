@@ -1,1 +1,7 @@
 node_modules
+dist
+frontend/dist
+.env
+.env.local
+.env.*.local
+*.log
