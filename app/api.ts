@@ -8,6 +8,10 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://campus-lost-found-ghvc.onrender.com";
 
+if (API_BASE_URL.includes("localhost") || API_BASE_URL.includes("127.0.0.1")) {
+  throw new Error("Vercel execution hardening: Local API base URL is not permitted.");
+}
+
 function formatDateString(dateValue?: string | Date): string {
   if (!dateValue) return "";
   const date = new Date(dateValue);
