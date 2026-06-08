@@ -28,6 +28,15 @@ import {
 const LandingPage = lazy(() => import("./components/LandingPage"));
 const LoginPage = lazy(() => import("./components/LoginPage"));
 
+// ─── Date Helper ───────────────────────────────────────────────────────────
+function getTodayDateString(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // ─── Helper Types ──────────────────────────────────────────────────────────
 
 export type ReturnedLostRecord = {
@@ -80,7 +89,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
-    name: "", location: "", date: "", collectFrom: "", description: "", image: "",
+    name: "", location: "", date: getTodayDateString(), collectFrom: "", description: "", category: "", image: "",
     studentName: "", rollNo: "", phone: "", email: "",
     staffName: "", employeeId: "", department: "", staffPhone: "", staffEmail: "",
   });
@@ -99,7 +108,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
 
   const handleTypeSwitch = (t: "lost" | "found") => {
     setItemType(t);
-    setForm({ name: "", location: "", date: "", collectFrom: "", description: "", image: "", studentName: "", rollNo: "", phone: "", email: "", staffName: "", employeeId: "", department: "", staffPhone: "", staffEmail: "" });
+    setForm({ name: "", location: "", date: getTodayDateString(), collectFrom: "", description: "", category: "", image: "", studentName: "", rollNo: "", phone: "", email: "", staffName: "", employeeId: "", department: "", staffPhone: "", staffEmail: "" });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,7 +120,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
         type: itemType,
         name: form.name,
         description: form.description,
-        category: "Others",
+        category: form.category || "Others",
         location: form.location,
         date: form.date,
         collectFrom: form.collectFrom,
@@ -277,6 +286,24 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                 className={inputCls + " resize-none"}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               />
+            </Field>
+
+            {/* Category */}
+            <Field label="Category" required>
+              <select
+                required
+                value={form.category}
+                onChange={set("category")}
+                className={inputCls + " appearance-none"}
+                style={{ fontFamily: "DM Sans, sans-serif" }}
+              >
+                <option value="" disabled className="bg-white">Select a category</option>
+                {categories.map((cat) => (
+                  <option key={cat.name} value={cat.name} className="bg-white">
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             {/* ── Contact Type Switcher ─────────────────────── */}
@@ -496,7 +523,7 @@ function PublicBrowseView({ type, onBack }: { type: "lost" | "found"; onBack: ()
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <CombinedItemsPage initialFilter={type} />
+        <CombinedItemsPage initialFilter="found" />
       </div>
       <ScrollToTopButton />
     </div>
@@ -514,7 +541,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
   const [selectedCategory, setSelectedCategory] = useState("");
   const [countdownFilter, setCountdownFilter]   = useState("");
   const [locationFilter, setLocationFilter]     = useState("");
-  const [dateFrom, setDateFrom]                 = useState("");
+  const [dateFrom, setDateFrom]                 = useState(getTodayDateString());
   const [dateTo, setDateTo]                     = useState("");
   const [currentPage, setCurrentPage]           = useState(1);
   const [backendItems, setBackendItems]         = useState<BrowseItem[]>([]);
@@ -2190,7 +2217,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
   const [editRollNo, setEditRollNo] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [editReturnedDate, setEditReturnedDate] = useState("");
+  const [editReturnedDate, setEditReturnedDate] = useState(getTodayDateString());
   const [editReturnedTime, setEditReturnedTime] = useState("");
   const [editRemarks, setEditRemarks] = useState("");
 

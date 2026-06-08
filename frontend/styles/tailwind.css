@@ -2,3 +2,14 @@
 @source '../**/*.{js,ts,jsx,tsx}';
 
 @import 'tw-animate-css';
+
+/* ── Browse Items CTA: gentle professional pulse ── */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes gentle-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(8, 145, 178, 0.0); }
+    50%       { box-shadow: 0 0 0 6px rgba(8, 145, 178, 0.18); }
+  }
+  .animate-gentle-pulse {
+    animation: gentle-pulse 2.4s ease-in-out infinite;
+  }
+}

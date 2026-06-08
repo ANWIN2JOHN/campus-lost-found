@@ -37,7 +37,7 @@ const howItWorks = [
   { icon: <Package size={24} />, step: "03", title: "Collect Your Item", desc: "Bring your student ID to the designated office to verify ownership and collect your item.", g: "from-amber-500 to-orange-500", bg: "from-amber-50 to-orange-50", border: "border-amber-100" },
 ];
 
-export default function LandingPage({ onBrowseLost, onAdminLogin }: LandingPageProps) {
+export default function LandingPage({ onBrowseFound, onAdminLogin }: LandingPageProps) {
   const [stats, setStats] = useState({
   total: 0,
   lost: 0,
@@ -218,8 +218,8 @@ const overviewStats = [
           {/* Browse card — full width */}
           <div>
             <button
-              onClick={onBrowseLost}
-              className="group relative w-full overflow-hidden bg-white rounded-2xl border border-gray-200 p-10 hover:border-cyan-300 hover:shadow-2xl transition-all duration-300 text-left"
+              onClick={onBrowseFound}
+              className="group relative w-full overflow-hidden bg-white rounded-2xl border border-gray-200 p-10 hover:border-cyan-300 hover:shadow-2xl transition-all duration-300 text-left animate-gentle-pulse"
             >
               <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-orange-300 to-orange-400 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
               <div className="absolute bottom-0 right-0 w-64 h-64 bg-gradient-to-br from-green-300 to-emerald-400 rounded-full blur-3xl opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
