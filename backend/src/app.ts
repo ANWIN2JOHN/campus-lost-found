@@ -34,7 +34,10 @@ app.use(helmet());
 // CORS
 app.use(
   cors({
-    origin: config.frontendUrl,
+    origin: [
+      "https://campus-lost-found-lime.vercel.app",
+      "https://lostandfound.qzz.io",
+    ],
     credentials: true,
   })
 );
