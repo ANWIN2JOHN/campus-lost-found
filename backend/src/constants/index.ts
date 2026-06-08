@@ -25,14 +25,14 @@ export const CONTACT_TYPE = {
 } as const;
 
 export const CATEGORIES = [
-  { name: "Bags & Backpacks", icon: "🎒" },
-  { name: "Water Bottles", icon: "🍶" },
-  { name: "Electronics", icon: "💻" },
-  { name: "Books & Notebooks", icon: "📚" },
-  { name: "Keys & Keychains", icon: "🔑" },
-  { name: "Accessories", icon: "⌚" },
-  { name: "Eyewear", icon: "🕶️" },
-  { name: "Others", icon: "📦" },
+  { name: "Bags & Backpacks", icon: "" },
+  { name: "Water Bottles", icon: "" },
+  { name: "Electronics", icon: "" },
+  { name: "Books & Notebooks", icon: "" },
+  { name: "Keys & Keychains", icon: "" },
+  { name: "Accessories", icon: "" },
+  { name: "Eyewear", icon: "" },
+  { name: "Others", icon: "" },
 ] as const;
 
 export const COLLECT_FROM_OPTIONS = [
