@@ -246,7 +246,7 @@ export async function getHistory(): Promise<{
   disposed: DisposedRecord[];
 }> {
   try {
-    const payload = await fetchJson("/api/history", { limit: "1000" });
+    const payload = await fetchJson("/api/history/claimed", { limit: "1000" });
     const data = payload?.data ?? payload;
     const returnedItems = data?.returned ?? data?.claimed ?? data?.["claimed" + "Items"] ?? [];
     const disposedItems = data?.disposed ?? data?.disposedItems ?? [];
