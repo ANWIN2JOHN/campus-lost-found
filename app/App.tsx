@@ -68,6 +68,73 @@ function validatePhone(phone: string, fieldLabel: string): string | null {
   return null;
 }
 
+// ─── Found Item Return Validators ────────────────────────────────────────────
+function validateReturnStudentName(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return "Student Name is required.";
+  if (trimmed.length < 2) return "Student Name must be at least 2 characters.";
+  if (trimmed.length > 100) return "Student Name must not exceed 100 characters.";
+  if (/^[0-9]+$/.test(trimmed)) return "Student Name cannot be numbers only.";
+  if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Student Name can only contain letters, spaces, hyphens, and apostrophes.";
+  return null;
+}
+
+function validateReturnRollNo(roll: string): string | null {
+  const trimmed = roll.trim().toUpperCase();
+  if (!trimmed) return "Roll Number is required.";
+  if (trimmed.length < 3) return "Roll Number must be at least 3 characters.";
+  if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
+  if (!/^[A-Z0-9][A-Z0-9\-\/]*$/.test(trimmed)) return "Roll Number can only contain letters, numbers, hyphens, and slashes.";
+  return null;
+}
+
+function validateReturnPhone(phone: string): string | null {
+  const trimmed = phone.trim();
+  if (!trimmed) return "Phone Number is required.";
+  if (/[a-zA-Z]/.test(trimmed)) return "Phone Number cannot contain letters.";
+  const withoutPrefix = trimmed.replace(/^\+91[\s-]?/, "").replace(/[\s-]/g, "");
+  if (/[^0-9]/.test(withoutPrefix)) return "Phone Number can only contain digits (or +91 prefix).";
+  if (withoutPrefix.length !== 10) return "Phone Number must be exactly 10 digits.";
+  if (/^0+$/.test(withoutPrefix)) return "Phone Number cannot be all zeros.";
+  return null;
+}
+
+function validateReturnedDate(date: string, foundDateStr: string): string | null {
+  if (!date) return "Returned Date is required.";
+  const returnDate = new Date(date + "T00:00:00");
+  if (isNaN(returnDate.getTime())) return "Returned Date is not a valid date.";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  if (returnDate > today) return "Returned Date cannot be a future date.";
+  if (foundDateStr) {
+    const parsedFound = new Date(foundDateStr);
+    if (!isNaN(parsedFound.getTime())) {
+      parsedFound.setHours(0, 0, 0, 0);
+      if (returnDate < parsedFound) return "Returned Date cannot be before the item's found date.";
+    }
+  }
+  return null;
+}
+
+function validateReturnedTime(time: string, date: string): string | null {
+  if (!time) return "Returned Time is required.";
+  if (!/^\d{2}:\d{2}$/.test(time)) return "Returned Time must be in HH:MM format.";
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (date === todayStr) {
+    const [h, m] = time.split(":").map(Number);
+    if (h * 60 + m > now.getHours() * 60 + now.getMinutes()) return "Returned Time cannot be in the future.";
+  }
+  return null;
+}
+
+function validateReturnRemarks(remarks: string): string | null {
+  const trimmed = remarks.trim();
+  if (trimmed.length > 500) return "Remarks must not exceed 500 characters.";
+  if (/<[^>]+>/.test(trimmed)) return "Remarks cannot contain HTML tags.";
+  if (/javascript:/i.test(trimmed) || /on\w+\s*=/i.test(trimmed)) return "Remarks contain invalid content.";
+  return null;
+}
+
 // ─── Helper Types ──────────────────────────────────────────────────────────
 
 export type ReturnedLostRecord = {
@@ -2375,6 +2442,8 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSaveLoading, setIsSaveLoading] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
@@ -2428,6 +2497,8 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
     setEditReturnedDate(item.returnedDate || "");
     setEditReturnedTime("");
     setEditRemarks("");
+    setFieldErrors({});
+    setIsSaveLoading(false);
     requestAnimationFrame(() => requestAnimationFrame(() => setModalVisible(true)));
   };
 
@@ -2436,39 +2507,47 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
     closeTimerRef.current = setTimeout(() => setEditItem(null), 260);
   };
 
-  const isReturnValid = editStatus !== "Returned" || (!!editStudentName && !!editRollNo && !!editPhone && !!editEmail && !!editReturnedDate && !!editReturnedTime);
+  const isReturnValid = editStatus === "Returned" &&
+    !validateReturnStudentName(editStudentName) &&
+    !validateReturnRollNo(editRollNo) &&
+    !validateReturnPhone(editPhone) &&
+    !validateEmail(editEmail) &&
+    !validateReturnedDate(editReturnedDate, editItem?.dateFound ?? "") &&
+    !validateReturnedTime(editReturnedTime, editReturnedDate) &&
+    !validateReturnRemarks(editRemarks);
 
   const handleSaveEdit = () => {
-    if (!editItem || !isReturnValid) return;
+    if (!editItem) return;
     if (editStatus === "Returned") {
-      const trimmedName = editStudentName.trim();
-      const trimmedRoll = editRollNo.trim();
-      const trimmedPhone = editPhone.trim();
-      const trimmedEmail = editEmail.trim();
-
-      const nameErr = validateName(trimmedName, "Claimant Name");
-      if (nameErr) {
-        toast.error("Validation Error", { description: nameErr, duration: 4000 });
+      const errors: Record<string, string> = {};
+      const nameErr = validateReturnStudentName(editStudentName);
+      if (nameErr) errors.name = nameErr;
+      const rollErr = validateReturnRollNo(editRollNo);
+      if (rollErr) errors.roll = rollErr;
+      const phoneErr = validateReturnPhone(editPhone);
+      if (phoneErr) errors.phone = phoneErr;
+      const emailErr = validateEmail(editEmail.trim());
+      if (emailErr) errors.email = emailErr;
+      const dateErr = validateReturnedDate(editReturnedDate, editItem.dateFound);
+      if (dateErr) errors.date = dateErr;
+      const timeErr = validateReturnedTime(editReturnedTime, editReturnedDate);
+      if (timeErr) errors.time = timeErr;
+      const remarksErr = validateReturnRemarks(editRemarks);
+      if (remarksErr) errors.remarks = remarksErr;
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
         return;
       }
-      const phoneErr = validatePhone(trimmedPhone, "Phone Number");
-      if (phoneErr) {
-        toast.error("Validation Error", { description: phoneErr, duration: 4000 });
-        return;
-      }
-      const emailErr = validateEmail(trimmedEmail);
-      if (emailErr) {
-        toast.error("Validation Error", { description: emailErr, duration: 4000 });
-        return;
-      }
-
-      setEditStudentName(trimmedName);
-      setEditRollNo(trimmedRoll);
-      setEditPhone(trimmedPhone);
-      setEditEmail(trimmedEmail.toLowerCase());
-
+      setFieldErrors({});
+      setIsSaveLoading(true);
+      setEditStudentName(editStudentName.trim());
+      setEditRollNo(editRollNo.trim().toUpperCase());
+      setEditPhone(editPhone.trim());
+      setEditEmail(editEmail.trim().toLowerCase());
+      setEditRemarks(editRemarks.trim());
       setPendingReturnItem(editItem);
       closeModal();
+      setIsSaveLoading(false);
     }
   };
 
@@ -2694,14 +2773,10 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                 <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>
                   Status <span style={{ color: "#ef4444" }}>*</span>
                 </label>
-                <select
-                  value={editStatus}
-                  onChange={e => setEditStatus(e.target.value)}
-                  className={fInput}
-                  style={{ fontFamily: "DM Sans, sans-serif", appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 36 }}
-                >
-                  <option value="Returned">Returned</option>
-                </select>
+                <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: "#15803d" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  Returned
+                </div>
               </div>
 
               {/* Returned-specific fields */}
@@ -2714,22 +2789,24 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                       <input
                         type="text"
                         value={editStudentName}
-                        onChange={e => setEditStudentName(e.target.value)}
+                        onChange={e => { setEditStudentName(e.target.value); setFieldErrors(prev => ({ ...prev, name: "" })); }}
                         placeholder="Full name"
                         className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.name ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
+                      {fieldErrors.name && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.name}</p>}
                     </div>
                     <div>
                       <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Roll Number <span style={{ color: "#ef4444" }}>*</span></label>
                       <input
                         type="text"
                         value={editRollNo}
-                        onChange={e => setEditRollNo(e.target.value)}
+                        onChange={e => { setEditRollNo(e.target.value.toUpperCase()); setFieldErrors(prev => ({ ...prev, roll: "" })); }}
                         placeholder="e.g. 25-BCAIOT-23"
                         className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.roll ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
+                      {fieldErrors.roll && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.roll}</p>}
                     </div>
                   </div>
 
@@ -2740,22 +2817,24 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                       <input
                         type="tel"
                         value={editPhone}
-                        onChange={e => setEditPhone(e.target.value)}
+                        onChange={e => { setEditPhone(e.target.value); setFieldErrors(prev => ({ ...prev, phone: "" })); }}
                         placeholder="+91 9876543210"
                         className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.phone ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
+                      {fieldErrors.phone && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.phone}</p>}
                     </div>
                     <div>
                       <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Email Address <span style={{ color: "#ef4444" }}>*</span></label>
                       <input
                         type="email"
                         value={editEmail}
-                        onChange={e => setEditEmail(e.target.value)}
+                        onChange={e => { setEditEmail(e.target.value); setFieldErrors(prev => ({ ...prev, email: "" })); }}
                         placeholder="mail@kristujayanti.com"
                         className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.email ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
+                      {fieldErrors.email && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.email}</p>}
                     </div>
                   </div>
 
@@ -2766,20 +2845,23 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                       <input
                         type="date"
                         value={editReturnedDate}
-                        onChange={e => setEditReturnedDate(e.target.value)}
+                        max={getTodayDateString()}
+                        onChange={e => { setEditReturnedDate(e.target.value); setFieldErrors(prev => ({ ...prev, date: "", time: "" })); }}
                         className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light" }}
+                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.date ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
+                      {fieldErrors.date && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.date}</p>}
                     </div>
                     <div>
                       <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Time <span style={{ color: "#ef4444" }}>*</span></label>
                       <input
                         type="time"
                         value={editReturnedTime}
-                        onChange={e => setEditReturnedTime(e.target.value)}
+                        onChange={e => { setEditReturnedTime(e.target.value); setFieldErrors(prev => ({ ...prev, time: "" })); }}
                         className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light" }}
+                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.time ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
+                      {fieldErrors.time && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.time}</p>}
                     </div>
                   </div>
                 </>
@@ -2787,18 +2869,19 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
 
               {/* Remarks */}
               <div>
-                <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>
-                  Remarks / Notes
-                  <span style={{ color: "#9ca3af", fontWeight: 400, marginLeft: 4 }}>(Optional)</span>
+                <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Remarks / Notes <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Optional)</span></span>
+                  <span style={{ color: editRemarks.trim().length > 500 ? "#ef4444" : "#9ca3af", fontSize: 11, fontWeight: 400 }}>{editRemarks.trim().length}/500</span>
                 </label>
                 <textarea
                   rows={3}
                   value={editRemarks}
-                  onChange={e => setEditRemarks(e.target.value)}
+                  onChange={e => { setEditRemarks(e.target.value); setFieldErrors(prev => ({ ...prev, remarks: "" })); }}
                   placeholder="Add any additional notes or remarks…"
                   className={fInput}
-                  style={{ fontFamily: "DM Sans, sans-serif", resize: "none" }}
+                  style={{ fontFamily: "DM Sans, sans-serif", resize: "none", ...(fieldErrors.remarks ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                 />
+                {fieldErrors.remarks && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.remarks}</p>}
               </div>
 
               {/* Record Information */}
@@ -2833,21 +2916,28 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
               </button>
               <button
                 onClick={handleSaveEdit}
-                disabled={!isReturnValid}
+                disabled={!isReturnValid || isSaveLoading}
                 style={{
                   flex: 1, padding: "10px 0", borderRadius: 9, border: "none",
-                  background: isReturnValid ? "#0891b2" : "#e5e7eb",
-                  color: isReturnValid ? "white" : "#9ca3af",
+                  background: isReturnValid && !isSaveLoading ? "#0891b2" : "#e5e7eb",
+                  color: isReturnValid && !isSaveLoading ? "white" : "#9ca3af",
                   fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
-                  cursor: isReturnValid ? "pointer" : "not-allowed",
+                  cursor: isReturnValid && !isSaveLoading ? "pointer" : "not-allowed",
                   transition: "all 0.15s",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  opacity: isSaveLoading ? 0.85 : 1,
                 }}
-                onMouseEnter={e => { if (isReturnValid) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
-                onMouseLeave={e => { if (isReturnValid) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
+                onMouseEnter={e => { if (isReturnValid && !isSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
+                onMouseLeave={e => { if (isReturnValid && !isSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
-                {editStatus === "Returned" ? "Continue →" : "Save Changes"}
+                {isSaveLoading ? (
+                  <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                    Continue →
+                  </>
+                )}
               </button>
             </div>
           </div>
