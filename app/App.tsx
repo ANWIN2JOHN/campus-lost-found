@@ -1967,7 +1967,7 @@ function CountdownChip({ dateStr }: { dateStr: string }) {
   return <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 whitespace-nowrap">🟢 {daysRemaining}d</span>;
 }
 
-function CountdownSummaryCards({ items, dateField }: { items: Array<Record<string, string>>, dateField: string }) {
+function CountdownSummaryCards({ items, dateField, isLoading }: { items: Array<Record<string, string>>, dateField: string, isLoading?: boolean }) {
   const notReturned = items.filter(i => i.status === "Not Returned");
   const stats = notReturned.reduce(
     (acc, item) => { const { countdownStatus } = getDaysInfo(item[dateField]); acc[countdownStatus]++; return acc; },
@@ -1985,7 +1985,11 @@ function CountdownSummaryCards({ items, dateField }: { items: Array<Record<strin
         <div key={i} className={`border rounded-xl p-4 flex items-center gap-3 ${c.cls}`}>
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${c.dot}`} />
           <div>
-            <p className={`text-2xl font-bold ${c.txt}`} style={{ fontFamily: "Outfit, sans-serif" }}>{c.value}</p>
+            {isLoading ? (
+              <div className="h-8 w-12 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className={`text-2xl font-bold ${c.txt}`} style={{ fontFamily: "Outfit, sans-serif" }}>{c.value}</p>
+            )}
             <p className={`text-[10px] font-semibold ${c.txt}`} style={{ fontFamily: "DM Sans, sans-serif" }}>{c.label}</p>
           </div>
         </div>
@@ -2110,6 +2114,9 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const showSkeleton = isLoading || isRefreshing;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
@@ -2141,19 +2148,24 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
   const clearFilters = () => { setSearchTerm(""); setFilterLocation(""); setCurrentPage(1); };
 
   const confirmDelete = async () => {
-    if (pendingDeleteId !== null) {
-      setIsActionLoading(true);
-      try {
-        await deleteLostItem(pendingDeleteId);
-        setPendingDeleteId(null);
-        toast.success("Item deleted successfully");
-        onRefresh?.();
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
-      } finally {
-        setIsActionLoading(false);
+    if (isActionLoading || pendingDeleteId === null) return;
+    setIsActionLoading(true);
+    setIsRefreshing(true);
+    const idToDelete = pendingDeleteId;
+    try {
+      await deleteLostItem(idToDelete);
+      setItems(prev => prev.filter(item => item.id !== idToDelete));
+      setPendingDeleteId(null);
+      toast.success("Item deleted successfully");
+      if (onRefresh) {
+        await onRefresh();
       }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
+    } finally {
+      setIsActionLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -2166,20 +2178,25 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
 
   const handleSaveEdit = () => {
     if (!editItem) return;
-    if (editStatus === "Returned") {
-      const trimmedName = editStudentName.trim();
-      const nameErr = validateName(trimmedName, "Student Name");
-      if (nameErr) {
-        toast.error("Validation Error", { description: nameErr, duration: 4000 });
-        return;
-      }
-      setEditStudentName(trimmedName);
-      setEditRollNo(editRollNo.trim());
-
-      setPendingReturnItem(editItem);
-      setEditItem(null);
+    if (!editStatus || editStatus.trim() === "") {
+      toast.error("Validation Error", { description: "Status field is required.", duration: 4000 });
       return;
     }
+    if (editStatus !== "Returned") {
+      toast.error("Validation Error", { description: "Status must be Returned.", duration: 4000 });
+      return;
+    }
+    const trimmedName = editStudentName.trim();
+    const nameErr = validateName(trimmedName, "Student Name");
+    if (nameErr) {
+      toast.error("Validation Error", { description: nameErr, duration: 4000 });
+      return;
+    }
+    setEditStudentName(trimmedName);
+    setEditRollNo(editRollNo.trim());
+
+    setPendingReturnItem(editItem);
+    setEditItem(null);
   };
 
   const confirmReturn = async () => {
@@ -2223,7 +2240,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
       </div>
 
       {/* Countdown Summary Cards */}
-      <CountdownSummaryCards items={items as Array<Record<string, string>>} dateField="dateFound" />
+      <CountdownSummaryCards items={items as Array<Record<string, string>>} dateField="dateFound" isLoading={showSkeleton} />
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
@@ -2286,7 +2303,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {showSkeleton ? (
                 Array.from({ length: 5 }).map((_, idx) => (
                   <tr key={`skeleton-${idx}`} className="border-b border-gray-100 animate-pulse">
                     <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-28"></div></td>
@@ -2362,14 +2379,12 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-2" style={{ fontFamily: "DM Sans, sans-serif" }}>Status <span className="text-red-400">*</span></label>
-                <select
-                  value={editStatus}
-                  onChange={e => setEditStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                <div
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 font-medium select-none"
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
-                  <option value="Returned">Returned</option>
-                </select>
+                  Returned
+                </div>
               </div>
             </div>
             <div className="flex gap-3 mt-5">
