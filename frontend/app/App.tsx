@@ -2998,7 +2998,7 @@ function GuidelinesPage() {
     "For electronic items, students may be asked to unlock the device or verify ownership.",
     "Admin should verify matching details from the Lost Item report before returning the item.",
     "If ownership is unclear, the item should remain under admin review until verification is complete.",
-    "Items unclaimed after 6 months will be donated or disposed of responsibly.",
+    "Items unclaimed after 60 days will be donated or disposed of responsibly.",
   ];
 
   const foundRules = [
