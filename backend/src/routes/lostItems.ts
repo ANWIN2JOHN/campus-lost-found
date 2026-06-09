@@ -66,12 +66,10 @@ router.put(
 
 /**
  * DELETE /api/items/lost/:id
- * Protected endpoint - delete lost item
+ * Delete lost item
  */
 router.delete(
   "/:id",
-  verifyToken,
-  verifyAdmin,
   catchAsync(LostItemController.deleteItem)
 );
 

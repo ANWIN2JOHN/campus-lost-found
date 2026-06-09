@@ -13,7 +13,7 @@ import { CardNameTooltip } from "./components/CardNameTooltip";
 import ClaimCountdownBar from "./components/ClaimCountdownBar";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import campusLogo from "../imports/afa90946107debb396ffdb7284683a17-1.jpg";
-import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem } from "./api";
+import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem, updateLostItemStatus, updateFoundItemStatus, deleteLostItem, deleteFoundItem } from "./api";
 import {
   categories,
   collectFromOptions,
@@ -988,25 +988,26 @@ function LogoutModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: (
 // ─── Delete Confirm Modal ──────────────────────────────────────────────────
 
 function DeleteConfirmModal({
-  onConfirm, onClose, itemName, itemId, itemType,
+  onConfirm, onClose, itemName, itemId, itemType, loading,
 }: {
   onConfirm: () => void;
   onClose: () => void;
   itemName: string;
   itemId: string;
   itemType: string;
+  loading?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !loading) onClose(); };
     document.addEventListener("keydown", onKey);
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [onClose, loading]);
 
   const typeColor = itemType === "Lost Item"
     ? { bg: "bg-amber-50", border: "border-amber-200", badge: "bg-amber-100 text-amber-700" }
@@ -1016,7 +1017,7 @@ function DeleteConfirmModal({
 
   return (
     <div
-      onClick={onClose}
+      onClick={() => { if (!loading) onClose(); }}
       style={{
         transition: "background 0.25s, backdrop-filter 0.25s",
         backdropFilter: visible ? "blur(4px)" : "blur(0px)",
@@ -1081,20 +1082,26 @@ function DeleteConfirmModal({
           <div className="flex gap-3 w-full">
             <button
               onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 hover:border-gray-300 transition-all duration-150"
+              disabled={loading}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 hover:border-gray-300 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
               Cancel
             </button>
             <button
               onClick={onConfirm}
+              disabled={loading}
               className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold transition-all duration-150 shadow-sm flex items-center justify-center gap-2"
-              style={{ background: "#EF4444", fontFamily: "DM Sans, sans-serif" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "#DC2626")}
-              onMouseLeave={e => (e.currentTarget.style.background = "#EF4444")}
+              style={{ background: loading ? "#FDA4AF" : "#EF4444", cursor: loading ? "not-allowed" : "pointer", fontFamily: "DM Sans, sans-serif" }}
+              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = "#DC2626"; }}
+              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = "#EF4444"; }}
             >
-              <Trash2 size={14} />
-              Delete
+              {loading ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              {loading ? "Deleting..." : "Delete"}
             </button>
           </div>
         </div>
@@ -1106,25 +1113,26 @@ function DeleteConfirmModal({
 // ─── Return Confirm Modal ───────────────────────────────────────────────────
 
 function ReturnConfirmModal({
-  itemName, itemId, itemType, onConfirm, onClose,
+  itemName, itemId, itemType, onConfirm, onClose, loading,
 }: {
   itemName: string;
   itemId: string;
   itemType: string;
   onConfirm: () => void;
   onClose: () => void;
+  loading?: boolean;
 }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !loading) onClose(); };
     document.addEventListener("keydown", onKey);
     return () => { cancelAnimationFrame(raf); document.removeEventListener("keydown", onKey); };
-  }, [onClose]);
+  }, [onClose, loading]);
 
   return (
     <div
-      onClick={onClose}
+      onClick={() => { if (!loading) onClose(); }}
       style={{
         position: "fixed", inset: 0, zIndex: 60,
         display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem",
@@ -1189,20 +1197,36 @@ function ReturnConfirmModal({
           <div style={{ display: "flex", gap: 10 }}>
             <button
               onClick={onClose}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: "pointer" }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "white"; }}
+              disabled={loading}
+              style={{
+                flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid #d1d5db",
+                background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif",
+                cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1
+              }}
+              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
+              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "white"; }}
             >
               Cancel
             </button>
             <button
               onClick={onConfirm}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "#22c55e", color: "white", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#16a34a"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#22c55e"; }}
+              disabled={loading}
+              style={{
+                flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+                background: loading ? "#86efac" : "#22c55e",
+                color: "white", fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+              }}
+              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "#16a34a"; }}
+              onMouseLeave={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.background = "#22c55e"; }}
             >
-              <CheckCircle size={14} />
-              Confirm Return
+              {loading ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <CheckCircle size={14} />
+              )}
+              {loading ? "Returning..." : "Confirm Return"}
             </button>
           </div>
         </div>
@@ -1218,11 +1242,13 @@ function ItemHistoryPage({
   lostAdminRecords,
   disposedHistory,
   returnedHistory,
+  isLoading,
 }: {
   foundAdminRecords: AdminFoundItem[];
   lostAdminRecords: AdminLostItem[];
   disposedHistory: DisposedRecord[];
   returnedHistory: ReturnedHistoryRecord[];
+  isLoading?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<"returned" | "lost-not-found" | "disposed">("returned");
   const [searchTerm, setSearchTerm] = useState("");
@@ -1385,18 +1411,49 @@ function ItemHistoryPage({
               </tr>
             </thead>
             <tbody>
-              {activeTab === "lost-not-found" ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={`skeleton-${idx}`} className="border-b border-gray-100 animate-pulse">
+                    {activeTab === "returned" ? (
+                      <>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-12"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                      </>
+                    ) : activeTab === "lost-not-found" ? (
+                      <>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-12"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                        <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                      </>
+                    )}
+                  </tr>
+                ))
+              ) : activeTab === "lost-not-found" ? (
                 filteredLostNotFound.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No lost &amp; not found items yet. Lost items unclaimed after 60 days will appear here.</td></tr>
                 ) : filteredLostNotFound.map((item, i) => {
                   const elapsed = item.daysElapsed;
                   return (
                     <tr key={`lnf-${item.id}`} className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{item.name}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reportedDate}</td>
                       <td className="px-4 py-3 text-gray-600 max-w-[120px]"><span className="truncate block">{item.location}</span></td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{elapsed}d</td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reporter || "—"}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reporter ? <CardNameTooltip name={item.reporter} /> : "—"}</td>
                     </tr>
                   );
                 })
@@ -1405,16 +1462,16 @@ function ItemHistoryPage({
                   <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">No returned items found</td></tr>
                 ) : filteredReturned.map((item, i) => (
                   <tr key={`ret-${item.type}-${item.id}`} className={`border-b border-gray-100 hover:bg-emerald-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
-                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{item.name}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${item.type === "Lost" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{item.type}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reportedDate}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.closedDate || "—"}</td>
                     <td className="px-4 py-3 text-gray-600 max-w-[120px]"><span className="truncate block">{item.location}</span></td>
-                    <td className="px-4 py-3 text-gray-900 whitespace-nowrap">{item.studentName || "—"}</td>
+                    <td className="px-4 py-3 text-gray-900 whitespace-nowrap">{item.studentName ? <CardNameTooltip name={item.studentName} /> : "—"}</td>
                     <td className="px-4 py-3 text-gray-600 font-mono">{item.rollNo || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reporter || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reporter ? <CardNameTooltip name={item.reporter} /> : "—"}</td>
                   </tr>
                 ))
               ) : (
@@ -1422,7 +1479,7 @@ function ItemHistoryPage({
                   <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">No disposed items yet. Items disposed from the Expired Items module will appear here.</td></tr>
                 ) : filteredDisposed.map((item, i) => (
                   <tr key={`dis-${item.type}-${item.id}-${i}`} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
-                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{item.name}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.disposedDate}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-50 text-pink-600">
@@ -1975,7 +2032,7 @@ function AdminTablePagination({
   );
 }
 
-function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void }) {
+function LostItemsPage({ items, setItems, onReturn, isLoading }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean }) {
   const [editItem, setEditItem] = useState<AdminLostItem | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editStudentName, setEditStudentName] = useState("");
@@ -1985,6 +2042,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
@@ -2015,13 +2073,26 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
 
   const clearFilters = () => { setSearchTerm(""); setFilterLocation(""); setCurrentPage(1); };
 
-  const confirmDelete = () => {
-    if (pendingDeleteId !== null) { setItems(items.filter(i => i.id !== pendingDeleteId)); setPendingDeleteId(null); }
+  const confirmDelete = async () => {
+    if (pendingDeleteId !== null) {
+      setIsActionLoading(true);
+      try {
+        await deleteLostItem(pendingDeleteId);
+        setItems(items.filter(i => i.id !== pendingDeleteId));
+        setPendingDeleteId(null);
+        toast.success("Item deleted successfully");
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
+      } finally {
+        setIsActionLoading(false);
+      }
+    }
   };
 
   const handleEdit = (item: AdminLostItem) => {
     if (item.status === "Returned") return;
-    setEditItem(item); setEditStatus(item.status);
+    setEditItem(item); setEditStatus("Returned");
     setEditStudentName(item.studentName || ""); setEditRollNo(item.rollNo || ""); setEditClaimedDate(item.claimedDate || "");
   };
 
@@ -2041,38 +2112,39 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
       setEditItem(null);
       return;
     }
-    setItems(items.map(item =>
-      item.id === editItem.id ? {
-        ...item, status: editStatus,
-        studentName: "", rollNo: "", claimedDate: "",
-        lastUpdated: formatNow(),
-      } : item
-    ));
-    setEditItem(null);
   };
 
-  const confirmReturn = () => {
+  const confirmReturn = async () => {
     if (!pendingReturnItem) return;
-    const now = formatNow();
-    onReturn({
-      id: pendingReturnItem.id,
-      type: "Lost",
-      name: pendingReturnItem.name,
-      reportedDate: pendingReturnItem.dateFound,
-      closedDate: now,
-      studentName: editStudentName,
-      rollNo: editRollNo,
-      location: pendingReturnItem.location,
-      reporter: pendingReturnItem.reporterName,
-      reporterPhone: pendingReturnItem.reporterPhone,
-      reporterEmail: pendingReturnItem.reporterEmail,
-    });
-    setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
-    setPendingReturnItem(null);
-    toast.success("Item marked as Returned", {
-      description: `${pendingReturnItem.name} has been moved to Returned History.`,
-      duration: 3500,
-    });
+    setIsActionLoading(true);
+    try {
+      await updateLostItemStatus(pendingReturnItem.id, editStudentName, editRollNo);
+      const now = formatNow();
+      onReturn({
+        id: pendingReturnItem.id,
+        type: "Lost",
+        name: pendingReturnItem.name,
+        reportedDate: pendingReturnItem.dateFound,
+        closedDate: now,
+        studentName: editStudentName,
+        rollNo: editRollNo,
+        location: pendingReturnItem.location,
+        reporter: pendingReturnItem.reporterName,
+        reporterPhone: pendingReturnItem.reporterPhone,
+        reporterEmail: pendingReturnItem.reporterEmail,
+      });
+      setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
+      setPendingReturnItem(null);
+      toast.success("Item marked as Returned", {
+        description: `${pendingReturnItem.name} has been moved to Returned History.`,
+        duration: 3500,
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to return item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   return (
@@ -2146,9 +2218,20 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
               </tr>
             </thead>
             <tbody>
-              {filteredItems.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={`skeleton-${idx}`} className="border-b border-gray-100 animate-pulse">
+                    <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-28"></div></td>
+                    <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div><div className="h-3 bg-gray-100 rounded w-16 mt-1"></div></td>
+                    <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div><div className="h-3 bg-gray-100 rounded w-16 mt-1"></div></td>
+                    <td className="px-4 py-4"><div className="h-6 bg-gray-200 rounded-full w-16"></div></td>
+                    <td className="px-4 py-4"><div className="h-6 bg-gray-200 rounded w-12"></div></td>
+                  </tr>
+                ))
+              ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-gray-500 text-sm" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                  <td colSpan={6} className="px-4 py-10 text-center text-gray-500 text-sm" style={{ fontFamily: "DM Sans, sans-serif" }}>
                     No items found matching your search criteria
                   </td>
                 </tr>
@@ -2164,7 +2247,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
                   </td>
                   <td className="px-4 py-3">
                     <div>
-                      <p className="font-medium text-gray-900">{item.reporterName}</p>
+                      <p className="font-medium text-gray-900"><CardNameTooltip name={item.reporterName} /></p>
                       <p className="text-[10px] text-gray-500">{item.reporterRoll}</p>
                       <p className="text-[10px] text-gray-500">{item.reporterPhone}</p>
                       <p className="text-[10px] text-cyan-600">{item.reporterEmail}</p>
@@ -2217,7 +2300,6 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
-                  <option value="Not Returned">Not Returned</option>
                   <option value="Returned">Returned</option>
                 </select>
               </div>
@@ -2225,7 +2307,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
             <div className="flex gap-3 mt-5">
               <button onClick={() => setEditItem(null)} className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium text-sm transition-colors" style={{ fontFamily: "DM Sans, sans-serif" }}>Cancel</button>
               <button onClick={handleSaveEdit} className="flex-1 px-4 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 font-medium text-sm transition-colors" style={{ fontFamily: "DM Sans, sans-serif" }}>
-                {editStatus === "Returned" ? "Continue →" : "Save Changes"}
+                Continue →
               </button>
             </div>
           </div>
@@ -2239,6 +2321,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
           itemType="Lost Item"
           onConfirm={confirmReturn}
           onClose={() => setPendingReturnItem(null)}
+          loading={isActionLoading}
         />
       )}
 
@@ -2251,6 +2334,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
             itemName={target?.name ?? ""}
             itemId={`LOST-${String(pendingDeleteId).padStart(3, "0")}`}
             itemType="Lost Item"
+            loading={isActionLoading}
           />
         );
       })()}
@@ -2271,7 +2355,7 @@ function formatNow(): string {
   return `${day} ${mon} ${year}, ${String(h).padStart(2, "0")}:${m} ${ampm}`;
 }
 
-function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]; setItems: React.Dispatch<React.SetStateAction<AdminFoundItem[]>>; onReturn: (r: ReturnedLostRecord) => void }) {
+function FoundItemsPage({ items, setItems, onReturn, isLoading }: { items: AdminFoundItem[]; setItems: React.Dispatch<React.SetStateAction<AdminFoundItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean }) {
   const [editItem, setEditItem] = useState<AdminFoundItem | null>(null);
   const [pendingReturnItem, setPendingReturnItem] = useState<AdminFoundItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -2289,6 +2373,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
@@ -2313,17 +2398,28 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
   const safePage = Math.min(currentPage, totalPages);
   const pageItems = filteredItems.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
 
-  const clearFilters = () => { setSearchTerm(""); setFilterLocation(""); setFilterCountdown(""); setCurrentPage(1); };
-
-  const confirmDelete = () => {
-    if (pendingDeleteId !== null) { setItems(items.filter(i => i.id !== pendingDeleteId)); setPendingDeleteId(null); }
+  const confirmDelete = async () => {
+    if (pendingDeleteId !== null) {
+      setIsActionLoading(true);
+      try {
+        await deleteFoundItem(pendingDeleteId);
+        setItems(items.filter(i => i.id !== pendingDeleteId));
+        setPendingDeleteId(null);
+        toast.success("Item deleted successfully");
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
+      } finally {
+        setIsActionLoading(false);
+      }
+    }
   };
 
   const openModal = (item: AdminFoundItem) => {
     if (item.status === "Returned") return;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     setEditItem(item);
-    setEditStatus("Returned"); // only valid action — "Not Returned" option removed
+    setEditStatus("Returned");
     setEditStudentName(item.studentName || "");
     setEditRollNo(item.rollNo || "");
     setEditPhone("");
@@ -2372,46 +2468,40 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
 
       setPendingReturnItem(editItem);
       closeModal();
-      return;
     }
-    const now = formatNow();
-    setItems(prev => prev.map(item =>
-      item.id === editItem.id ? {
-        ...item,
-        status: editStatus,
-        studentName: "", rollNo: "", returnedDate: "",
-        lastUpdated: now,
-      } : item
-    ));
-    closeModal();
-    toast.success("Item updated successfully", {
-      description: `${editItem.name} status updated.`,
-      duration: 3500,
-    });
   };
 
-  const confirmReturn = () => {
+  const confirmReturn = async () => {
     if (!pendingReturnItem) return;
-    const now = formatNow();
-    onReturn({
-      id: pendingReturnItem.id,
-      type: "Found",
-      name: pendingReturnItem.name,
-      reportedDate: pendingReturnItem.dateFound,
-      closedDate: now,
-      studentName: editStudentName,
-      rollNo: editRollNo,
-      location: pendingReturnItem.location,
-      reporter: "",
-      reporterPhone: "",
-      reporterEmail: "",
-    });
-    setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
-    setPendingReturnItem(null);
-    toast.success("Item marked as Returned", {
-      description: `${pendingReturnItem.name} has been moved to Returned History.`,
-      duration: 3500,
-    });
+    setIsActionLoading(true);
+    try {
+      await updateFoundItemStatus(pendingReturnItem.id, editStudentName, editRollNo, editPhone, editEmail);
+      const now = formatNow();
+      onReturn({
+        id: pendingReturnItem.id,
+        type: "Found",
+        name: pendingReturnItem.name,
+        reportedDate: pendingReturnItem.dateFound,
+        closedDate: now,
+        studentName: editStudentName,
+        rollNo: editRollNo,
+        location: pendingReturnItem.location,
+        reporter: "",
+        reporterPhone: "",
+        reporterEmail: "",
+      });
+      setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
+      setPendingReturnItem(null);
+      toast.success("Item marked as Returned", {
+        description: `${pendingReturnItem.name} has been moved to Returned History.`,
+        duration: 3500,
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to return item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   const fLabel = "block text-xs font-semibold text-gray-600 mb-1.5";
@@ -2488,7 +2578,17 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
               </tr>
             </thead>
             <tbody>
-              {filteredItems.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={`skeleton-${idx}`} className="border-b border-gray-100 animate-pulse">
+                    <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-28"></div></td>
+                    <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div><div className="h-3 bg-gray-100 rounded w-16 mt-1"></div></td>
+                    <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td className="px-4 py-4"><div className="h-6 bg-gray-200 rounded-full w-16"></div></td>
+                    <td className="px-4 py-4"><div className="h-6 bg-gray-200 rounded w-12"></div></td>
+                  </tr>
+                ))
+              ) : filteredItems.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-gray-500 text-sm" style={{ fontFamily: "DM Sans, sans-serif" }}>
                     No items found matching your search criteria
@@ -2496,7 +2596,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
                 </tr>
               ) : pageItems.map((item, i) => (
                 <tr key={item.id} className={`border-b border-gray-100 hover:bg-cyan-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
-                  <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{item.name}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="text-gray-700">{item.foundAt.split(", ")[0]}</div>
                     <div className="text-gray-400 text-[10px]">{item.foundAt.split(", ")[1]}</div>
@@ -2760,6 +2860,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
           itemType="Found Item"
           onConfirm={confirmReturn}
           onClose={() => setPendingReturnItem(null)}
+          loading={isActionLoading}
         />
       )}
 
@@ -2772,6 +2873,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
             itemName={target?.name ?? ""}
             itemId={`FOUND-${String(pendingDeleteId).padStart(3, "0")}`}
             itemType="Found Item"
+            loading={isActionLoading}
           />
         );
       })()}
@@ -2932,6 +3034,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [sharedLostItems, setSharedLostItems] = useState<AdminLostItem[]>([]);
   const [disposedHistory, setDisposedHistory] = useState<DisposedRecord[]>([]);
   const [returnedHistory, setReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const loadDashboardItems = async () => {
     try {
@@ -2953,6 +3056,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     async function loadItems() {
+      setIsLoading(true);
       await loadDashboardItems();
       try {
         const history = await getHistory();
@@ -2960,6 +3064,8 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
         setDisposedHistory(history.disposed);
       } catch (error) {
         console.error("Failed to load history data", error);
+      } finally {
+        setIsLoading(false);
       }
     }
 
@@ -2987,10 +3093,10 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
       return <UploadPage onBack={() => setActiveNav("lost-items")} onItemCreated={loadDashboardItems} />;
     }
     if (activeNav === "lost-items") {
-      return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} />;
+      return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} />;
     }
     if (activeNav === "found-items") {
-      return <FoundItemsPage items={sharedFoundItems} setItems={setSharedFoundItems} onReturn={handleReturn} />;
+      return <FoundItemsPage items={sharedFoundItems} setItems={setSharedFoundItems} onReturn={handleReturn} isLoading={isLoading} />;
     }
     if (activeNav === "expired-items") {
       return (
@@ -3004,7 +3110,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
       );
     }
     if (activeNav === "history") {
-      return <ItemHistoryPage foundAdminRecords={sharedFoundItems} lostAdminRecords={sharedLostItems} disposedHistory={disposedHistory} returnedHistory={returnedHistory} />;
+      return <ItemHistoryPage foundAdminRecords={sharedFoundItems} lostAdminRecords={sharedLostItems} disposedHistory={disposedHistory} returnedHistory={returnedHistory} isLoading={isLoading} />;
     }
     if (activeNav === "guidelines") {
       return <GuidelinesPage />;
@@ -3012,7 +3118,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
     if (activeNav === "settings") {
       return <SettingsPage onLogoutRequest={openLogoutModal} />;
     }
-    return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} />;
+    return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} />;
   };
 
   return (

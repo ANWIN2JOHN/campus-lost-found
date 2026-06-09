@@ -415,3 +415,40 @@ response.data.refreshToken
 return response;
 }
 
+// ─── Status Update Endpoints ────────────────────────────────────────────────
+
+export async function updateLostItemStatus(
+  id: string,
+  returnedBy: string,
+  returnedRollNo: string
+): Promise<void> {
+  await fetchJson(`/api/items/lost/${id}`, {}, {
+    method: "PUT",
+    body: JSON.stringify({ status: "Returned", returnedBy, returnedRollNo }),
+  });
+}
+
+export async function updateFoundItemStatus(
+  id: string,
+  claimedBy: string,
+  claimedRollNo: string,
+  claimedPhone: string,
+  claimedEmail: string
+): Promise<void> {
+  await fetchJson(`/api/items/found/${id}`, {}, {
+    method: "PUT",
+    body: JSON.stringify({ status: "Returned", claimedBy, claimedRollNo, claimedPhone, claimedEmail }),
+  });
+}
+
+// ─── Delete Endpoints ───────────────────────────────────────────────────────
+
+export async function deleteLostItem(id: string): Promise<void> {
+  await fetchJson(`/api/items/lost/${id}`, {}, { method: "DELETE" });
+}
+
+export async function deleteFoundItem(id: string): Promise<void> {
+  await fetchJson(`/api/items/found/${id}`, {}, { method: "DELETE" });
+}
+
+
