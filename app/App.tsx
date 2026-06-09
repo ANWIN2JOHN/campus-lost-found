@@ -2323,7 +2323,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
     if (item.status === "Returned") return;
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     setEditItem(item);
-    setEditStatus(item.status);
+    setEditStatus("Returned"); // only valid action — "Not Returned" option removed
     setEditStudentName(item.studentName || "");
     setEditRollNo(item.rollNo || "");
     setEditPhone("");
