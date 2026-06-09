@@ -2490,7 +2490,8 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
         await deleteFoundItem(pendingDeleteId);
         setPendingDeleteId(null);
         toast.success("Item deleted successfully");
-        onRefresh?.();
+        // onRefresh?.();
+        getAdminLostItems();
       } catch (error) {
         console.error(error);
         toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
