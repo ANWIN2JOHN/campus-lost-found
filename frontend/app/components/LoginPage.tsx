@@ -14,6 +14,7 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [error, setError]       = useState("");
   const [validationMsg, setValidationMsg] = useState("");
   const [showPassword, setShowPassword]   = useState(false);
+  const [isLoading, setIsLoading]         = useState(false);
 
   const validateEmail = (val: string) => {
     if (!val) return "";
@@ -41,6 +42,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   setValidationMsg("");
   setError("");
+  setIsLoading(true);
 
   try {
     await loginAdmin(email, password);
@@ -52,6 +54,8 @@ const handleSubmit = async (e: React.FormEvent) => {
         ? error.message
         : "Invalid admin credentials"
     );
+  } finally {
+    setIsLoading(false);
   }
 };
 
@@ -172,10 +176,11 @@ const handleSubmit = async (e: React.FormEvent) => {
               <div className="pt-1">
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-full text-white text-sm font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
+                  disabled={isLoading}
+                  className="w-full py-3 rounded-full text-white text-sm font-semibold transition-all duration-200 hover:opacity-90 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                   style={{ background: "#0891b2", fontFamily: "DM Sans, sans-serif", fontSize: "0.95rem" }}
                 >
-                  Sign In
+                  {isLoading ? "Signing In..." : "Sign In"}
                 </button>
               </div>
             </form>

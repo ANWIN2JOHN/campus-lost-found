@@ -44,6 +44,7 @@ export default function LandingPage({ onBrowseFound, onAdminLogin }: LandingPage
   found: 0,
   returned: 0,
 });
+const [statsLoading, setStatsLoading] = useState(true);
 
 useEffect(() => {
   Promise.all([
@@ -86,7 +87,8 @@ useEffect(() => {
           returnedFound.length,
       });
     })
-    .catch(console.error);
+    .catch(console.error)
+    .finally(() => setStatsLoading(false));
 }, []);
 
 const TOTAL = stats.total;
@@ -191,15 +193,31 @@ const overviewStats = [
                   <span className="text-slate-400 text-xs shrink-0" style={{ fontFamily: "DM Sans, sans-serif" }}>Live statistics</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {overviewStats.map((s, i) => (
-                    <div key={i} className={`bg-white border ${s.border} rounded-2xl p-4 flex items-center gap-3 shadow-sm`}>
-                      {s.ring}
-                      <div>
-                        <p className="text-2xl font-bold text-slate-900" style={{ fontFamily: "Outfit, sans-serif" }}>{s.value}</p>
-                        <p className={`text-xs font-semibold ${s.labelColor}`} style={{ fontFamily: "DM Sans, sans-serif" }}>{s.label}</p>
+                  {statsLoading ? (
+                    // Skeleton placeholders — same dimensions as real cards
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+                        {/* Ring skeleton */}
+                        <div className="shrink-0 rounded-full bg-slate-200 animate-pulse" style={{ width: 56, height: 56 }} />
+                        <div className="flex flex-col gap-2 flex-1">
+                          {/* Value skeleton */}
+                          <div className="h-7 w-10 rounded bg-slate-200 animate-pulse" />
+                          {/* Label skeleton */}
+                          <div className="h-3 w-20 rounded bg-slate-200 animate-pulse" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    overviewStats.map((s, i) => (
+                      <div key={i} className={`bg-white border ${s.border} rounded-2xl p-4 flex items-center gap-3 shadow-sm`}>
+                        {s.ring}
+                        <div>
+                          <p className="text-2xl font-bold text-slate-900" style={{ fontFamily: "Outfit, sans-serif" }}>{s.value}</p>
+                          <p className={`text-xs font-semibold ${s.labelColor}`} style={{ fontFamily: "DM Sans, sans-serif" }}>{s.label}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
