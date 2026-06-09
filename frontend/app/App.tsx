@@ -2494,8 +2494,10 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
     setEditRollNo(item.rollNo || "");
     setEditPhone("");
     setEditEmail("");
-    setEditReturnedDate(item.returnedDate || "");
-    setEditReturnedTime("");
+    // Pre-fill date=today and time=now so the button can enable once text fields are valid
+    const _now = new Date();
+    setEditReturnedDate(item.returnedDate || getTodayDateString());
+    setEditReturnedTime(`${String(_now.getHours()).padStart(2, "0")}:${String(_now.getMinutes()).padStart(2, "0")}`);
     setEditRemarks("");
     setFieldErrors({});
     setIsSaveLoading(false);
@@ -2790,6 +2792,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         type="text"
                         value={editStudentName}
                         onChange={e => { setEditStudentName(e.target.value); setFieldErrors(prev => ({ ...prev, name: "" })); }}
+                        onBlur={e => setFieldErrors(prev => ({ ...prev, name: validateReturnStudentName(e.target.value) || "" }))}
                         placeholder="Full name"
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.name ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
@@ -2802,6 +2805,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         type="text"
                         value={editRollNo}
                         onChange={e => { setEditRollNo(e.target.value.toUpperCase()); setFieldErrors(prev => ({ ...prev, roll: "" })); }}
+                        onBlur={e => setFieldErrors(prev => ({ ...prev, roll: validateReturnRollNo(e.target.value) || "" }))}
                         placeholder="e.g. 25-BCAIOT-23"
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.roll ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
@@ -2818,6 +2822,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         type="tel"
                         value={editPhone}
                         onChange={e => { setEditPhone(e.target.value); setFieldErrors(prev => ({ ...prev, phone: "" })); }}
+                        onBlur={e => setFieldErrors(prev => ({ ...prev, phone: validateReturnPhone(e.target.value) || "" }))}
                         placeholder="+91 9876543210"
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.phone ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
@@ -2830,6 +2835,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         type="email"
                         value={editEmail}
                         onChange={e => { setEditEmail(e.target.value); setFieldErrors(prev => ({ ...prev, email: "" })); }}
+                        onBlur={e => setFieldErrors(prev => ({ ...prev, email: validateEmail(e.target.value) || "" }))}
                         placeholder="mail@kristujayanti.com"
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.email ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
@@ -2847,6 +2853,14 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         value={editReturnedDate}
                         max={getTodayDateString()}
                         onChange={e => { setEditReturnedDate(e.target.value); setFieldErrors(prev => ({ ...prev, date: "", time: "" })); }}
+                        onBlur={e => {
+                          const d = e.target.value;
+                          setFieldErrors(prev => ({
+                            ...prev,
+                            date: validateReturnedDate(d, editItem?.dateFound ?? "") || "",
+                            time: editReturnedTime ? (validateReturnedTime(editReturnedTime, d) || "") : prev.time,
+                          }));
+                        }}
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.date ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
@@ -2858,6 +2872,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         type="time"
                         value={editReturnedTime}
                         onChange={e => { setEditReturnedTime(e.target.value); setFieldErrors(prev => ({ ...prev, time: "" })); }}
+                        onBlur={e => setFieldErrors(prev => ({ ...prev, time: validateReturnedTime(e.target.value, editReturnedDate) || "" }))}
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.time ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                       />
