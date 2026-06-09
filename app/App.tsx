@@ -2032,7 +2032,7 @@ function AdminTablePagination({
   );
 }
 
-function LostItemsPage({ items, setItems, onReturn, isLoading }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean }) {
+function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean; onRefresh?: () => void }) {
   const [editItem, setEditItem] = useState<AdminLostItem | null>(null);
   const [editStatus, setEditStatus] = useState("");
   const [editStudentName, setEditStudentName] = useState("");
@@ -2078,9 +2078,9 @@ function LostItemsPage({ items, setItems, onReturn, isLoading }: { items: AdminL
       setIsActionLoading(true);
       try {
         await deleteLostItem(pendingDeleteId);
-        setItems(items.filter(i => i.id !== pendingDeleteId));
         setPendingDeleteId(null);
         toast.success("Item deleted successfully");
+        onRefresh?.();
       } catch (error) {
         console.error(error);
         toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
@@ -2093,7 +2093,8 @@ function LostItemsPage({ items, setItems, onReturn, isLoading }: { items: AdminL
   const handleEdit = (item: AdminLostItem) => {
     if (item.status === "Returned") return;
     setEditItem(item); setEditStatus("Returned");
-    setEditStudentName(item.studentName || ""); setEditRollNo(item.rollNo || ""); setEditClaimedDate(item.claimedDate || "");
+    // Pre-populate with reporter info (the person who lost the item) so validation passes
+    setEditStudentName(item.reporterName || ""); setEditRollNo(item.reporterRoll || ""); setEditClaimedDate(item.claimedDate || "");
   };
 
   const handleSaveEdit = () => {
@@ -2133,12 +2134,12 @@ function LostItemsPage({ items, setItems, onReturn, isLoading }: { items: AdminL
         reporterPhone: pendingReturnItem.reporterPhone,
         reporterEmail: pendingReturnItem.reporterEmail,
       });
-      setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
       setPendingReturnItem(null);
       toast.success("Item marked as Returned", {
         description: `${pendingReturnItem.name} has been moved to Returned History.`,
         duration: 3500,
       });
+      onRefresh?.();
     } catch (error) {
       console.error(error);
       toast.error("Failed to return item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
@@ -2355,7 +2356,7 @@ function formatNow(): string {
   return `${day} ${mon} ${year}, ${String(h).padStart(2, "0")}:${m} ${ampm}`;
 }
 
-function FoundItemsPage({ items, setItems, onReturn, isLoading }: { items: AdminFoundItem[]; setItems: React.Dispatch<React.SetStateAction<AdminFoundItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean }) {
+function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { items: AdminFoundItem[]; setItems: React.Dispatch<React.SetStateAction<AdminFoundItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean; onRefresh?: () => void }) {
   const [editItem, setEditItem] = useState<AdminFoundItem | null>(null);
   const [pendingReturnItem, setPendingReturnItem] = useState<AdminFoundItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -2403,9 +2404,9 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading }: { items: Admin
       setIsActionLoading(true);
       try {
         await deleteFoundItem(pendingDeleteId);
-        setItems(items.filter(i => i.id !== pendingDeleteId));
         setPendingDeleteId(null);
         toast.success("Item deleted successfully");
+        onRefresh?.();
       } catch (error) {
         console.error(error);
         toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
@@ -2490,12 +2491,12 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading }: { items: Admin
         reporterPhone: "",
         reporterEmail: "",
       });
-      setItems(prev => prev.filter(i => i.id !== pendingReturnItem.id));
       setPendingReturnItem(null);
       toast.success("Item marked as Returned", {
         description: `${pendingReturnItem.name} has been moved to Returned History.`,
         duration: 3500,
       });
+      onRefresh?.();
     } catch (error) {
       console.error(error);
       toast.error("Failed to return item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
@@ -3036,40 +3037,32 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [returnedHistory, setReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadDashboardItems = async () => {
+  const refreshData = async () => {
+    setIsLoading(true);
     try {
-      const [lost, found] = await Promise.all([
+      const [lost, found, history] = await Promise.all([
         getAdminLostItems(),
         getAdminFoundItems(),
+        getHistory(),
       ]);
 
       setSharedLostItems(lost);
       setSharedFoundItems(found);
+      setReturnedHistory(history.returned);
+      setDisposedHistory(history.disposed);
     } catch (error) {
       console.error("Failed to load live dashboard data", error);
       toast.error("Unable to load live dashboard data", {
         description: error instanceof Error ? error.message : "Please check the Render API connection.",
         duration: 4500,
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    async function loadItems() {
-      setIsLoading(true);
-      await loadDashboardItems();
-      try {
-        const history = await getHistory();
-        setReturnedHistory(history.returned);
-        setDisposedHistory(history.disposed);
-      } catch (error) {
-        console.error("Failed to load history data", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadItems();
+    refreshData();
   }, []);
 
   const handleDispose = (record: DisposedRecord) => {
@@ -3090,13 +3083,13 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
 
   const renderMain = () => {
     if (activeNav === "upload-item") {
-      return <UploadPage onBack={() => setActiveNav("lost-items")} onItemCreated={loadDashboardItems} />;
+      return <UploadPage onBack={() => setActiveNav("lost-items")} onItemCreated={refreshData} />;
     }
     if (activeNav === "lost-items") {
-      return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} />;
+      return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} onRefresh={refreshData} />;
     }
     if (activeNav === "found-items") {
-      return <FoundItemsPage items={sharedFoundItems} setItems={setSharedFoundItems} onReturn={handleReturn} isLoading={isLoading} />;
+      return <FoundItemsPage items={sharedFoundItems} setItems={setSharedFoundItems} onReturn={handleReturn} isLoading={isLoading} onRefresh={refreshData} />;
     }
     if (activeNav === "expired-items") {
       return (
@@ -3118,7 +3111,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
     if (activeNav === "settings") {
       return <SettingsPage onLogoutRequest={openLogoutModal} />;
     }
-    return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} />;
+    return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} onRefresh={refreshData} />;
   };
 
   return (
