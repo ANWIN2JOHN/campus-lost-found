@@ -282,9 +282,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               <button
                 type="button"
                 onClick={() => handleTypeSwitch("lost")}
-                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isLost ? "bg-amber-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isLost ? "bg-amber-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               >
                 <AlertCircle size={14} />
@@ -293,9 +292,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               <button
                 type="button"
                 onClick={() => handleTypeSwitch("found")}
-                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  !isLost ? "bg-emerald-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${!isLost ? "bg-emerald-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               >
                 <CheckCircle size={14} />
@@ -410,23 +408,21 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                 <button
                   type="button"
                   onClick={() => setContactType("student")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                    isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    }`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
                   Student Contact Details
                 </button>
                 <button
                   type="button"
                   onClick={() => setContactType("staff")}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${
-                    !isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${!isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                    }`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>
                   Staff Contact Details
                 </button>
               </div>
@@ -623,16 +619,16 @@ function PublicBrowseView({ type, onBack }: { type: "lost" | "found"; onBack: ()
 const BROWSE_PAGE_SIZE = 6;
 
 function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | "lost" | "found" }) {
-  const [searchTerm, setSearchTerm]             = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [countdownFilter, setCountdownFilter]   = useState("");
-  const [locationFilter, setLocationFilter]     = useState("");
-  const [dateFrom, setDateFrom]                 = useState(getTodayDateString());
-  const [dateTo, setDateTo]                     = useState("");
-  const [currentPage, setCurrentPage]           = useState(1);
-  const [backendItems, setBackendItems]         = useState<BrowseItem[]>([]);
-  const [loadingItems, setLoadingItems]         = useState(false);
-  const [fetchError, setFetchError]             = useState<string | null>(null);
+  const [countdownFilter, setCountdownFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState(getTodayDateString());
+  const [dateTo, setDateTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [backendItems, setBackendItems] = useState<BrowseItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -885,11 +881,10 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
             <button
               key={n}
               onClick={() => setCurrentPage(n)}
-              className={`w-9 h-9 rounded-xl border text-xs font-bold transition-all duration-150 shadow-sm ${
-                safePage === n
-                  ? "bg-[#0891B2] border-[#0891B2] text-white shadow-md"
-                  : "border-[#E5E7EB] bg-white text-gray-600 hover:bg-[#0891B2] hover:text-white hover:border-[#0891B2]"
-              }`}
+              className={`w-9 h-9 rounded-xl border text-xs font-bold transition-all duration-150 shadow-sm ${safePage === n
+                ? "bg-[#0891B2] border-[#0891B2] text-white shadow-md"
+                : "border-[#E5E7EB] bg-white text-gray-600 hover:bg-[#0891B2] hover:text-white hover:border-[#0891B2]"
+                }`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
               {n}
@@ -1016,8 +1011,8 @@ function DeleteConfirmModal({
   const typeColor = itemType === "Lost Item"
     ? { bg: "bg-amber-50", border: "border-amber-200", badge: "bg-amber-100 text-amber-700" }
     : itemType === "Found Item"
-    ? { bg: "bg-emerald-50", border: "border-emerald-200", badge: "bg-emerald-100 text-emerald-700" }
-    : { bg: "bg-blue-50", border: "border-blue-200", badge: "bg-blue-100 text-blue-700" };
+      ? { bg: "bg-emerald-50", border: "border-emerald-200", badge: "bg-emerald-100 text-emerald-700" }
+      : { bg: "bg-blue-50", border: "border-blue-200", badge: "bg-blue-100 text-blue-700" };
 
   return (
     <div
@@ -1263,7 +1258,7 @@ function ItemHistoryPage({
     const matchesType = !filterType || row.type === filterType;
     const d = parseDateForCountdown(row.reportedDate);
     const matchesFrom = !dateFrom || d >= new Date(dateFrom);
-    const matchesTo   = !dateTo   || d <= new Date(dateTo);
+    const matchesTo = !dateTo || d <= new Date(dateTo);
     return matchesSearch && matchesType && matchesFrom && matchesTo;
   };
 
@@ -1307,10 +1302,10 @@ function ItemHistoryPage({
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { label: "Total Returned",    value: returnedItems.length,       dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
-          { label: "Lost & Not Found",  value: lostNotFoundRecords.length,   dot: "bg-red-400",     card: "bg-red-50 border-red-200",         txt: "text-red-700" },
-          { label: "Disposed Items",    value: disposedHistory.length,     dot: "bg-gray-400",    card: "bg-gray-50 border-gray-200",       txt: "text-gray-600" },
-          { label: "Found → Returned",  value: returnedItems.filter(r => r.type === "Found").length, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
+          { label: "Total Returned", value: returnedItems.length, dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
+          { label: "Lost & Not Found", value: lostNotFoundRecords.length, dot: "bg-red-400", card: "bg-red-50 border-red-200", txt: "text-red-700" },
+          { label: "Disposed Items", value: disposedHistory.length, dot: "bg-gray-400", card: "bg-gray-50 border-gray-200", txt: "text-gray-600" },
+          { label: "Found → Returned", value: returnedItems.filter(r => r.type === "Found").length, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
         ].map((s, i) => (
           <div key={i} className={`border rounded-2xl p-4 flex items-center gap-3 shadow-sm ${s.card}`}>
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
@@ -1377,13 +1372,13 @@ function ItemHistoryPage({
               <tr className="border-b border-gray-200 bg-gray-50">
                 {activeTab === "returned"
                   ? ["Item Name", "Type", "Reported Date", "Returned Date", "Location", "Student", "Roll No", "Reporter"].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
-                    ))
+                    <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
+                  ))
                   : activeTab === "lost-not-found"
-                  ? ["Item Name", "Reported Date", "Location", "Days Elapsed", "Reporter"].map(h => (
+                    ? ["Item Name", "Reported Date", "Location", "Days Elapsed", "Reporter"].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
                     ))
-                  : ["Item Name", "Disposed Date", "Donated To"].map(h => (
+                    : ["Item Name", "Disposed Date", "Donated To"].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
                     ))
                 }
@@ -1647,7 +1642,7 @@ function ExpiredItemsPage({
               </div>
               <button onClick={closeModal}
                 style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6b7280" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
 
@@ -1801,11 +1796,10 @@ function AdminSidebar({ active, setActive, onLogoutRequest }: { active: string; 
                 <button
                   key={item.id}
                   onClick={() => setActive(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all ${
-                    active === item.id
-                      ? "bg-cyan-600 text-white"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all ${active === item.id
+                    ? "bg-cyan-600 text-white"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    }`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
                   {item.icon}
@@ -1877,7 +1871,7 @@ function CountdownSummaryCards({ items, dateField }: { items: Array<Record<strin
 }
 
 function parseDateTime(dt: string): number {
-  const months: Record<string, number> = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+  const months: Record<string, number> = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
   const [datePart, timePart] = dt.split(", ");
   if (!datePart || !timePart) return 0;
   const [day, mon, year] = datePart.split(" ");
@@ -1951,11 +1945,10 @@ function AdminTablePagination({
           <button
             key={n}
             onClick={() => onPageChange(n)}
-            className={`w-8 h-8 text-xs rounded-lg border transition-all duration-150 shadow-sm ${
-              safePage === n
-                ? "bg-cyan-600 border-cyan-600 text-white"
-                : "border-gray-200 bg-white text-gray-600 hover:bg-cyan-600 hover:text-white hover:border-cyan-600"
-            }`}
+            className={`w-8 h-8 text-xs rounded-lg border transition-all duration-150 shadow-sm ${safePage === n
+              ? "bg-cyan-600 border-cyan-600 text-white"
+              : "border-gray-200 bg-white text-gray-600 hover:bg-cyan-600 hover:text-white hover:border-cyan-600"
+              }`}
             style={{ fontFamily: "DM Sans, sans-serif" }}
           >
             {n}
@@ -2268,7 +2261,7 @@ function LostItemsPage({ items, setItems, onReturn }: { items: AdminLostItem[]; 
 function formatNow(): string {
   const now = new Date();
   const day = String(now.getDate()).padStart(2, "0");
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const mon = months[now.getMonth()];
   const year = now.getFullYear();
   let h = now.getHours();
@@ -2579,7 +2572,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#fecaca"; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#e5e7eb"; }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
 
@@ -2590,7 +2583,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
               <div>
                 <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Item Name</label>
                 <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#374151", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
                   <span style={{ fontWeight: 500, color: "#111827" }}>{editItem.name}</span>
                 </div>
               </div>
@@ -2606,7 +2599,6 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
                   className={fInput}
                   style={{ fontFamily: "DM Sans, sans-serif", appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: 36 }}
                 >
-                  <option value="Not Returned">Not Returned</option>
                   <option value="Returned">Returned</option>
                 </select>
               </div>
@@ -2633,7 +2625,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
                         type="text"
                         value={editRollNo}
                         onChange={e => setEditRollNo(e.target.value)}
-                        placeholder="e.g. STU-2024-001"
+                        placeholder="e.g. 25-BCAIOT-23"
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif" }}
                       />
@@ -2648,7 +2640,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
                         type="tel"
                         value={editPhone}
                         onChange={e => setEditPhone(e.target.value)}
-                        placeholder="e.g. +91 9876543210"
+                        placeholder="+91 9876543210"
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif" }}
                       />
@@ -2659,7 +2651,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
                         type="email"
                         value={editEmail}
                         onChange={e => setEditEmail(e.target.value)}
-                        placeholder="student@campus.edu"
+                        placeholder="mail@kristujayanti.com"
                         className={fInput}
                         style={{ fontFamily: "DM Sans, sans-serif" }}
                       />
@@ -2753,7 +2745,7 @@ function FoundItemsPage({ items, setItems, onReturn }: { items: AdminFoundItem[]
                 onMouseEnter={e => { if (isReturnValid) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
                 onMouseLeave={e => { if (isReturnValid) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
                 {editStatus === "Returned" ? "Continue →" : "Save Changes"}
               </button>
             </div>
@@ -2831,11 +2823,10 @@ function GuidelinesPage() {
         <div className="inline-flex rounded-xl border border-gray-200 bg-white shadow-sm p-1 mb-6">
           <button
             onClick={() => setActive("lost")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              active === "lost"
-                ? "bg-cyan-600 text-white shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${active === "lost"
+              ? "bg-cyan-600 text-white shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+              }`}
             style={{ fontFamily: "DM Sans, sans-serif" }}
           >
             <AlertCircle size={14} />
@@ -2843,11 +2834,10 @@ function GuidelinesPage() {
           </button>
           <button
             onClick={() => setActive("found")}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              active === "found"
-                ? "bg-amber-500 text-white shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${active === "found"
+              ? "bg-amber-500 text-white shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+              }`}
             style={{ fontFamily: "DM Sans, sans-serif" }}
           >
             <CheckSquare size={14} />
