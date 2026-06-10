@@ -283,7 +283,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
           if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Staff Name can only contain letters, spaces, hyphens, and apostrophes.";
         }
         return null;
-      case "StaffId":
+      case "employeeId":
         if (!isStudent) {
           if (!trimmed) return "Staff ID is required.";
           if (trimmed.length < 3) return "Staff ID must be at least 3 characters.";
