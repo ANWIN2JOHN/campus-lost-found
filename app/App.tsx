@@ -169,19 +169,24 @@ export type DisposedRecord = {
 
 // ─── Upload Page (Admin) ───────────────────────────────────────────────────
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="text-gray-700 text-xs font-medium block mb-1.5" style={{ fontFamily: "DM Sans, sans-serif" }}>
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       {children}
+      {error && (
+        <p className="text-red-500 text-xs mt-1" style={{ fontFamily: "DM Sans, sans-serif" }}>
+          {error}
+        </p>
+      )}
     </div>
   );
 }
 
 
-function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreated?: () => void | Promise<void> }) {
+function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreated?: (type: "lost" | "found") => void | Promise<void> }) {
   const [itemType, setItemType] = useState<"lost" | "found">("found");
   const [contactType, setContactType] = useState<"student" | "staff">("student");
   const [submitted, setSubmitted] = useState(false);
@@ -190,7 +195,9 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
     name: "", location: "", date: getTodayDateString(), collectFrom: "", description: "", category: "", image: "",
     studentName: "", rollNo: "", phone: "", email: "",
     staffName: "", employeeId: "", department: "", staffPhone: "", staffEmail: "",
+    customCategory: "",
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isLost = itemType === "lost";
   const isStudent = contactType === "student";
@@ -201,93 +208,297 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
 
   const inputCls = "w-full bg-white border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 text-sm placeholder-gray-400 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 transition-all";
 
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm(f => ({ ...f, [key]: e.target.value }));
+  const getFieldError = (key: string, value: string): string | null => {
+    const trimmed = value.trim();
+    switch (key) {
+      case "name":
+        if (!trimmed) return "Item Name is required.";
+        if (trimmed.length < 2) return "Item Name must be at least 2 characters.";
+        if (trimmed.length > 100) return "Item Name must not exceed 100 characters.";
+        return null;
+      case "location": {
+        const label = isLost ? "Last Seen Location" : "Location Found";
+        if (!trimmed) return `${label} is required.`;
+        if (trimmed.length < 2) return `${label} must be at least 2 characters.`;
+        if (trimmed.length > 100) return `${label} must not exceed 100 characters.`;
+        return null;
+      }
+      case "description":
+        if (!trimmed) return "Description is required.";
+        if (trimmed.length < 10) return "Description must be at least 10 characters.";
+        if (trimmed.length > 1000) return "Description must not exceed 1000 characters.";
+        return null;
+      case "category":
+        if (!value) return "Category is required.";
+        return null;
+      case "customCategory":
+        if (form.category === "Others") {
+          if (!trimmed) return "Specify Category is required.";
+          if (trimmed.length < 2) return "Specify Category must be at least 2 characters.";
+          if (trimmed.length > 100) return "Specify Category must not exceed 100 characters.";
+        }
+        return null;
+      case "studentName":
+        if (isStudent) {
+          if (!trimmed) return "Student Name is required.";
+          if (trimmed.length < 2) return "Student Name must be at least 2 characters.";
+          if (trimmed.length > 100) return "Student Name must not exceed 100 characters.";
+          if (/^[0-9]+$/.test(trimmed)) return "Student Name cannot be numbers only.";
+          if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Student Name can only contain letters, spaces, hyphens, and apostrophes.";
+        }
+        return null;
+      case "rollNo":
+        if (isStudent) {
+          if (!trimmed) return "Roll Number is required.";
+          if (trimmed.length < 3) return "Roll Number must be at least 3 characters.";
+          if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
+          if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) return "Roll Number can only contain alphanumeric characters and hyphens.";
+        }
+        return null;
+      case "phone":
+        if (isStudent) {
+          if (!trimmed) return "Phone Number is required.";
+          if (!/^\d+$/.test(trimmed)) return "Phone Number must contain digits only.";
+          if (trimmed.length !== 10) return "Phone Number must be exactly 10 digits.";
+          if (trimmed === "0000000000") return "Phone Number cannot be all zeros.";
+        }
+        return null;
+      case "email":
+        if (isStudent) {
+          if (!trimmed) return "Email address is required.";
+          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          if (!emailRegex.test(trimmed)) {
+            return "Please enter a valid Kristu Jayanti institutional email address.";
+          }
+          if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
+            return "Only @kristujayanti.com email addresses are allowed.";
+          }
+        }
+        return null;
+      case "staffName":
+        if (!isStudent) {
+          if (!trimmed) return "Staff Name is required.";
+          if (trimmed.length < 2) return "Staff Name must be at least 2 characters.";
+          if (trimmed.length > 100) return "Staff Name must not exceed 100 characters.";
+          if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Staff Name can only contain letters, spaces, hyphens, and apostrophes.";
+        }
+        return null;
+      case "employeeId":
+        if (!isStudent) {
+          if (!trimmed) return "Employee ID is required.";
+          if (trimmed.length < 3) return "Employee ID must be at least 3 characters.";
+          if (trimmed.length > 30) return "Employee ID must not exceed 30 characters.";
+          if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) return "Employee ID can only contain alphanumeric characters and hyphens.";
+        }
+        return null;
+      case "department":
+        if (!isStudent) {
+          if (!trimmed) return "Department is required.";
+          if (trimmed.length < 2) return "Department must be at least 2 characters.";
+          if (trimmed.length > 100) return "Department must not exceed 100 characters.";
+        }
+        return null;
+      case "staffPhone":
+        if (!isStudent) {
+          if (!trimmed) return "Phone Number is required.";
+          if (!/^\d+$/.test(trimmed)) return "Phone Number must contain digits only.";
+          if (trimmed.length !== 10) return "Phone Number must be exactly 10 digits.";
+          if (trimmed === "0000000000") return "Phone Number cannot be all zeros.";
+        }
+        return null;
+      case "staffEmail":
+        if (!isStudent) {
+          if (!trimmed) return "Email address is required.";
+          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          if (!emailRegex.test(trimmed)) {
+            return "Please enter a valid Kristu Jayanti institutional email address.";
+          }
+          if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
+            return "Only @kristujayanti.com email addresses are allowed.";
+          }
+        }
+        return null;
+      case "collectFrom":
+        if (!isLost && !value) return "Where to Receive From is required.";
+        return null;
+      case "date":
+        if (!value) return `${isLost ? "Date Lost" : "Date Found"} is required.`;
+        if (value > getTodayDateString()) return `${isLost ? "Date Lost" : "Date Found"} cannot be in the future.`;
+        return null;
+      default:
+        return null;
+    }
+  };
+
+  const handleBlur = (key: keyof typeof form) => {
+    const err = getFieldError(key, form[key]);
+    setErrors(prev => ({ ...prev, [key]: err || "" }));
+  };
+
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const val = e.target.value;
+    setForm(f => {
+      const next = { ...f, [key]: val };
+      if (key === "category" && val !== "Others") {
+        next.customCategory = "";
+      }
+      return next;
+    });
+    setErrors(prev => {
+      const nextErrors = { ...prev, [key]: "" };
+      if (key === "category" && val !== "Others") {
+        nextErrors.customCategory = "";
+      }
+      return nextErrors;
+    });
+  };
 
   const handleTypeSwitch = (t: "lost" | "found") => {
     setItemType(t);
-    setForm({ name: "", location: "", date: getTodayDateString(), collectFrom: "", description: "", category: "", image: "", studentName: "", rollNo: "", phone: "", email: "", staffName: "", employeeId: "", department: "", staffPhone: "", staffEmail: "" });
+    setForm({
+      name: "", location: "", date: getTodayDateString(), collectFrom: "", description: "", category: "", image: "",
+      studentName: "", rollNo: "", phone: "", email: "",
+      staffName: "", employeeId: "", department: "", staffPhone: "", staffEmail: "",
+      customCategory: ""
+    });
+    setErrors({});
+  };
+
+  const handleContactTypeSwitch = (t: "student" | "staff") => {
+    setContactType(t);
+    setErrors(prev => {
+      const copy = { ...prev };
+      if (t === "student") {
+        delete copy.staffName;
+        delete copy.employeeId;
+        delete copy.department;
+        delete copy.staffPhone;
+        delete copy.staffEmail;
+      } else {
+        delete copy.studentName;
+        delete copy.rollNo;
+        delete copy.phone;
+        delete copy.email;
+      }
+      return copy;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.date > getTodayDateString()) {
-      toast.error("Invalid date", {
-        description: "The date cannot be in the future.",
-        duration: 3500,
-      });
-      return;
+    if (submitting) return;
+
+    // Validate all fields relevant to current type and contact type
+    const newErrors: Record<string, string> = {};
+
+    const nameErr = getFieldError("name", form.name);
+    if (nameErr) newErrors.name = nameErr;
+
+    const locationErr = getFieldError("location", form.location);
+    if (locationErr) newErrors.location = locationErr;
+
+    const dateErr = getFieldError("date", form.date);
+    if (dateErr) newErrors.date = dateErr;
+
+    if (!isLost) {
+      const collectErr = getFieldError("collectFrom", form.collectFrom);
+      if (collectErr) newErrors.collectFrom = collectErr;
     }
 
-    const trimmedForm = {
-      studentName: form.studentName.trim(),
-      rollNo: form.rollNo.trim(),
-      phone: form.phone.trim(),
-      email: form.email.trim(),
-      staffName: form.staffName.trim(),
-      employeeId: form.employeeId.trim(),
-      department: form.department.trim(),
-      staffPhone: form.staffPhone.trim(),
-      staffEmail: form.staffEmail.trim(),
-    };
+    const descErr = getFieldError("description", form.description);
+    if (descErr) newErrors.description = descErr;
 
-    if (contactType === "student") {
-      const nameErr = validateName(trimmedForm.studentName, "Student Name");
-      if (nameErr) {
-        toast.error("Validation Error", { description: nameErr, duration: 4000 });
-        return;
-      }
-      const phoneErr = validatePhone(trimmedForm.phone, "Phone Number");
-      if (phoneErr) {
-        toast.error("Validation Error", { description: phoneErr, duration: 4000 });
-        return;
-      }
-      const emailErr = validateEmail(trimmedForm.email);
-      if (emailErr) {
-        toast.error("Validation Error", { description: emailErr, duration: 4000 });
-        return;
-      }
+    const catErr = getFieldError("category", form.category);
+    if (catErr) newErrors.category = catErr;
+
+    if (form.category === "Others") {
+      const customCatErr = getFieldError("customCategory", form.customCategory);
+      if (customCatErr) newErrors.customCategory = customCatErr;
+    }
+
+    if (isStudent) {
+      const sNameErr = getFieldError("studentName", form.studentName);
+      if (sNameErr) newErrors.studentName = sNameErr;
+
+      const rollErr = getFieldError("rollNo", form.rollNo);
+      if (rollErr) newErrors.rollNo = rollErr;
+
+      const phoneErr = getFieldError("phone", form.phone);
+      if (phoneErr) newErrors.phone = phoneErr;
+
+      const emailErr = getFieldError("email", form.email);
+      if (emailErr) newErrors.email = emailErr;
     } else {
-      const nameErr = validateName(trimmedForm.staffName, "Staff Name");
-      if (nameErr) {
-        toast.error("Validation Error", { description: nameErr, duration: 4000 });
-        return;
+      const stNameErr = getFieldError("staffName", form.staffName);
+      if (stNameErr) newErrors.staffName = stNameErr;
+
+      const empIdErr = getFieldError("employeeId", form.employeeId);
+      if (empIdErr) newErrors.employeeId = empIdErr;
+
+      const deptErr = getFieldError("department", form.department);
+      if (deptErr) newErrors.department = deptErr;
+
+      const stPhoneErr = getFieldError("staffPhone", form.staffPhone);
+      if (stPhoneErr) newErrors.staffPhone = stPhoneErr;
+
+      const stEmailErr = getFieldError("staffEmail", form.staffEmail);
+      if (stEmailErr) newErrors.staffEmail = stEmailErr;
+    }
+
+    setErrors(newErrors);
+
+    const errorKeys = Object.keys(newErrors).filter(k => newErrors[k]);
+    if (errorKeys.length > 0) {
+      const domOrder = [
+        "name",
+        "location",
+        "date",
+        "collectFrom",
+        "description",
+        "category",
+        "customCategory",
+        isStudent ? "studentName" : "staffName",
+        isStudent ? "rollNo" : "employeeId",
+        !isStudent && "department",
+        isStudent ? "phone" : "staffPhone",
+        isStudent ? "email" : "staffEmail",
+      ].filter(Boolean) as string[];
+
+      const firstErrorKey = domOrder.find(k => newErrors[k]);
+      if (firstErrorKey) {
+        const element = document.getElementById(firstErrorKey);
+        if (element) {
+          element.focus();
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
       }
-      const phoneErr = validatePhone(trimmedForm.staffPhone, "Phone Number");
-      if (phoneErr) {
-        toast.error("Validation Error", { description: phoneErr, duration: 4000 });
-        return;
-      }
-      const emailErr = validateEmail(trimmedForm.staffEmail);
-      if (emailErr) {
-        toast.error("Validation Error", { description: emailErr, duration: 4000 });
-        return;
-      }
+      return;
     }
 
     setSubmitting(true);
 
     try {
+      const finalCategory = form.category === "Others" ? form.customCategory.trim() : form.category;
       await reportItem({
         type: itemType,
         name: form.name.trim(),
         description: form.description.trim(),
-        category: form.category || "Others",
+        category: finalCategory,
         location: form.location.trim(),
         date: form.date,
-        collectFrom: form.collectFrom,
+        collectFrom: isLost ? undefined : form.collectFrom,
         contactType,
-        studentName: trimmedForm.studentName,
-        rollNo: trimmedForm.rollNo,
-        studentPhone: trimmedForm.phone,
-        studentEmail: trimmedForm.email.toLowerCase(),
-        staffName: trimmedForm.staffName,
-        employeeId: trimmedForm.employeeId,
-        department: trimmedForm.department,
-        staffPhone: trimmedForm.staffPhone,
-        staffEmail: trimmedForm.staffEmail.toLowerCase(),
+        studentName: isStudent ? form.studentName.trim() : undefined,
+        rollNo: isStudent ? form.rollNo.trim().toUpperCase() : undefined,
+        studentPhone: isStudent ? form.phone.trim() : undefined,
+        studentEmail: isStudent ? form.email.trim().toLowerCase() : undefined,
+        staffName: !isStudent ? form.staffName.trim() : undefined,
+        employeeId: !isStudent ? form.employeeId.trim().toUpperCase() : undefined,
+        department: !isStudent ? form.department.trim() : undefined,
+        staffPhone: !isStudent ? form.staffPhone.trim() : undefined,
+        staffEmail: !isStudent ? form.staffEmail.trim().toLowerCase() : undefined,
       });
-      await onItemCreated?.();
+      await onItemCreated?.(itemType);
       setSubmitted(true);
     } catch (error) {
       toast.error("Unable to report item", {
@@ -339,7 +550,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50">
-      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto px-6 py-8">
+      <form onSubmit={handleSubmit} noValidate className="max-w-2xl mx-auto px-6 py-8">
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Form header strip */}
           <div className="px-6 py-5 border-b border-gray-200">
@@ -374,37 +585,40 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
 
           <div className="p-6 space-y-5">
             {/* Item Name */}
-            <Field label="Item Name" required>
+            <Field label="Item Name" required error={errors.name}>
               <input
-                required
+                id="name"
                 value={form.name}
                 onChange={set("name")}
+                onBlur={() => handleBlur("name")}
                 placeholder={isLost ? "e.g. Black Leather Wallet" : "e.g. Blue Nike Backpack"}
-                className={inputCls}
+                className={`${inputCls} ${errors.name ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               />
             </Field>
 
             {/* Location + Date row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label={isLost ? "Last Seen Location" : "Location Found"} required>
+              <Field label={isLost ? "Last Seen Location" : "Location Found"} required error={errors.location}>
                 <input
-                  required
+                  id="location"
                   value={form.location}
                   onChange={set("location")}
+                  onBlur={() => handleBlur("location")}
                   placeholder={isLost ? "e.g. Library 2nd Floor" : "e.g. Main Cafeteria"}
-                  className={inputCls}
+                  className={`${inputCls} ${errors.location ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 />
               </Field>
-              <Field label={isLost ? "Date Lost" : "Date Found"} required>
+              <Field label={isLost ? "Date Lost" : "Date Found"} required error={errors.date}>
                 <input
-                  required
+                  id="date"
                   type="date"
                   value={form.date}
                   max={getTodayDateString()}
                   onChange={set("date")}
-                  className={inputCls}
+                  onBlur={() => handleBlur("date")}
+                  className={`${inputCls} ${errors.date ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                   style={{ colorScheme: "light", fontFamily: "DM Sans, sans-serif" }}
                 />
               </Field>
@@ -412,12 +626,13 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
 
             {/* Collect From — only for found items */}
             {!isLost && (
-              <Field label="Where to Receive From" required>
+              <Field label="Where to Receive From" required error={errors.collectFrom}>
                 <select
-                  required
+                  id="collectFrom"
                   value={form.collectFrom}
                   onChange={set("collectFrom")}
-                  className={inputCls + " appearance-none"}
+                  onBlur={() => handleBlur("collectFrom")}
+                  className={`${inputCls} appearance-none ${errors.collectFrom ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
                   <option value="" disabled className="bg-white">Select reception/office</option>
@@ -427,25 +642,27 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
             )}
 
             {/* Description */}
-            <Field label="Description" required>
+            <Field label="Description" required error={errors.description}>
               <textarea
-                required
+                id="description"
                 rows={4}
                 value={form.description}
                 onChange={set("description")}
+                onBlur={() => handleBlur("description")}
                 placeholder="Describe the item clearly — colour, size, any distinguishing marks, contents if applicable..."
-                className={inputCls + " resize-none"}
+                className={`${inputCls} resize-none ${errors.description ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               />
             </Field>
 
             {/* Category */}
-            <Field label="Category" required>
+            <Field label="Category" required error={errors.category}>
               <select
-                required
+                id="category"
                 value={form.category}
                 onChange={set("category")}
-                className={inputCls + " appearance-none"}
+                onBlur={() => handleBlur("category")}
+                className={`${inputCls} appearance-none ${errors.category ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               >
                 <option value="" disabled className="bg-white">Select a category</option>
@@ -456,6 +673,21 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                 ))}
               </select>
             </Field>
+
+            {/* Specify Category when Others is selected */}
+            {form.category === "Others" && (
+              <Field label="Specify Category" required error={errors.customCategory}>
+                <input
+                  id="customCategory"
+                  value={form.customCategory || ""}
+                  onChange={set("customCategory")}
+                  onBlur={() => handleBlur("customCategory")}
+                  placeholder="Enter custom category"
+                  className={`${inputCls} ${errors.customCategory ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                  style={{ fontFamily: "DM Sans, sans-serif" }}
+                />
+              </Field>
+            )}
 
             {/* ── Contact Type Switcher ─────────────────────── */}
             <div className="pt-4 border-t border-gray-200">
@@ -474,7 +706,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 mt-3">
                 <button
                   type="button"
-                  onClick={() => setContactType("student")}
+                  onClick={() => handleContactTypeSwitch("student")}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
                     }`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
@@ -484,7 +716,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                 </button>
                 <button
                   type="button"
-                  onClick={() => setContactType("staff")}
+                  onClick={() => handleContactTypeSwitch("staff")}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${!isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
                     }`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
@@ -504,47 +736,51 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               }}
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Student Name" required={isStudent}>
+                <Field label="Student Name" required={isStudent} error={errors.studentName}>
                   <input
-                    required={isStudent}
+                    id="studentName"
                     value={form.studentName}
                     onChange={set("studentName")}
+                    onBlur={() => handleBlur("studentName")}
                     placeholder="Enter full name"
-                    className={inputCls}
+                    className={`${inputCls} ${errors.studentName ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
-                <Field label="Roll Number" required={isStudent}>
+                <Field label="Roll Number" required={isStudent} error={errors.rollNo}>
                   <input
-                    required={isStudent}
+                    id="rollNo"
                     value={form.rollNo}
                     onChange={set("rollNo")}
-                    placeholder="e.g. STU-2024-001"
-                    className={inputCls}
+                    onBlur={() => handleBlur("rollNo")}
+                    placeholder="eg. 25MCAIOT21"
+                    className={`${inputCls} ${errors.rollNo ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <Field label="Phone Number" required={isStudent}>
+                <Field label="Phone Number" required={isStudent} error={errors.phone}>
                   <input
-                    required={isStudent}
+                    id="phone"
                     type="tel"
                     value={form.phone}
                     onChange={set("phone")}
-                    placeholder="Enter phone number"
-                    className={inputCls}
+                    onBlur={() => handleBlur("phone")}
+                    placeholder="eg. +91 "
+                    className={`${inputCls} ${errors.phone ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
-                <Field label="Email Address" required={isStudent}>
+                <Field label="Email Address" required={isStudent} error={errors.email}>
                   <input
-                    required={isStudent}
+                    id="email"
                     type="email"
                     value={form.email}
                     onChange={set("email")}
-                    placeholder="Enter email address"
-                    className={inputCls}
+                    onBlur={() => handleBlur("email")}
+                    placeholder="college email address"
+                    className={`${inputCls} ${errors.email ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
@@ -560,66 +796,70 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               }}
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Staff Name" required={!isStudent}>
+                <Field label="Staff Name" required={!isStudent} error={errors.staffName}>
                   <input
-                    required={!isStudent}
+                    id="staffName"
                     value={form.staffName}
                     onChange={set("staffName")}
+                    onBlur={() => handleBlur("staffName")}
                     placeholder="Enter full name"
-                    className={inputCls}
+                    className={`${inputCls} ${errors.staffName ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
-                <Field label="Employee ID" required={!isStudent}>
+                <Field label="Employee ID" required={!isStudent} error={errors.employeeId}>
                   <input
-                    required={!isStudent}
+                    id="employeeId"
                     value={form.employeeId}
                     onChange={set("employeeId")}
-                    placeholder="e.g. EMP-2024-001"
-                    className={inputCls}
+                    onBlur={() => handleBlur("employeeId")}
+                    placeholder="e.g. 23CS2067"
+                    className={`${inputCls} ${errors.employeeId ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
               </div>
               <div className="mt-4">
-                <Field label="Department" required={!isStudent}>
+                <Field label="Department" required={!isStudent} error={errors.department}>
                   <input
-                    required={!isStudent}
+                    id="department"
                     value={form.department}
                     onChange={set("department")}
-                    placeholder="e.g. Engineering, Admin, Library…"
-                    className={inputCls}
+                    onBlur={() => handleBlur("department")}
+                    placeholder="e.g. Computer Science, Commerce, Library…,Admin"
+                    className={`${inputCls} ${errors.department ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <Field label="Phone Number" required={!isStudent}>
+                <Field label="Phone Number" required={!isStudent} error={errors.staffPhone}>
                   <input
-                    required={!isStudent}
+                    id="staffPhone"
                     type="tel"
                     value={form.staffPhone}
                     onChange={set("staffPhone")}
-                    placeholder="Enter phone number"
-                    className={inputCls}
+                    onBlur={() => handleBlur("staffPhone")}
+                    placeholder="eg. +91"
+                    className={`${inputCls} ${errors.staffPhone ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
-                <Field label="Email Address" required={!isStudent}>
+                <Field label="Email Address" required={!isStudent} error={errors.staffEmail}>
                   <input
-                    required={!isStudent}
+                    id="staffEmail"
                     type="email"
                     value={form.staffEmail}
                     onChange={set("staffEmail")}
-                    placeholder="Enter email address"
-                    className={inputCls}
+                    onBlur={() => handleBlur("staffEmail")}
+                    placeholder="college email address"
+                    className={`${inputCls} ${errors.staffEmail ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </Field>
               </div>
             </div>
 
-            {/* Info notice */}
           </div>
 
           {/* Footer buttons */}
@@ -635,7 +875,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
             <button
               type="submit"
               disabled={submitting}
-              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${btnClass}`}
+              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${btnClass} ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
               <Upload size={14} />
@@ -2484,20 +2724,22 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
   const pageItems = filteredItems.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
 
   const confirmDelete = async () => {
-    if (pendingDeleteId !== null) {
-      setIsActionLoading(true);
-      try {
-        await deleteFoundItem(pendingDeleteId);
-        setPendingDeleteId(null);
-        toast.success("Item deleted successfully");
-        // onRefresh?.();
-        getAdminLostItems();
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
-      } finally {
-        setIsActionLoading(false);
+    if (isActionLoading || pendingDeleteId === null) return;
+    setIsActionLoading(true);
+    const idToDelete = pendingDeleteId;
+    try {
+      await deleteFoundItem(idToDelete);
+      setItems(prev => prev.filter(item => item.id !== idToDelete));
+      setPendingDeleteId(null);
+      toast.success("Item deleted successfully");
+      if (onRefresh) {
+        await onRefresh();
       }
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -3182,6 +3424,27 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
     }
   };
 
+  const handleItemCreated = async (type: "lost" | "found") => {
+    setIsLoading(true);
+    try {
+      if (type === "lost") {
+        const lost = await getAdminLostItems();
+        setSharedLostItems(lost);
+      } else {
+        const found = await getAdminFoundItems();
+        setSharedFoundItems(found);
+      }
+    } catch (error) {
+      console.error(`Failed to refresh ${type} items`, error);
+      toast.error(`Unable to refresh ${type} items`, {
+        description: error instanceof Error ? error.message : "Please check the Render API connection.",
+        duration: 4500,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     refreshData();
   }, []);
@@ -3204,7 +3467,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
 
   const renderMain = () => {
     if (activeNav === "upload-item") {
-      return <UploadPage onBack={() => setActiveNav("lost-items")} onItemCreated={refreshData} />;
+      return <UploadPage onBack={() => setActiveNav("lost-items")} onItemCreated={handleItemCreated} />;
     }
     if (activeNav === "lost-items") {
       return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} onRefresh={refreshData} />;
