@@ -213,19 +213,22 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
     switch (key) {
       case "name":
         if (!trimmed) return "Item Name is required.";
-        if (trimmed.length < 2) return "Item Name must be at least 10 characters.";
+        if (isLost && trimmed.length < 2) return "Item Name must be at least 10 characters.";
+        if (!isLost && trimmed.length < 10) return "Item Name must be at least 10 characters.";
         if (trimmed.length > 100) return "Item Name must not exceed 100 characters.";
         return null;
       case "location": {
         const label = isLost ? "Last Seen Location" : "Location Found";
         if (!trimmed) return `${label} is required.`;
-        if (trimmed.length < 2) return `${label} must be at least 15 characters.`;
+        if (isLost && trimmed.length < 2) return `${label} must be at least 15 characters.`;
+        if (!isLost && trimmed.length < 10) return `${label} must be at least 10 characters.`;
         if (trimmed.length > 100) return `${label} must not exceed 100 characters.`;
         return null;
       }
       case "description":
         if (!trimmed) return "Description is required.";
-        if (trimmed.length < 10) return "Description must be at least 15 characters.";
+        if (isLost && trimmed.length < 10) return "Description must be at least 15 characters.";
+        if (!isLost && trimmed.length < 15) return "Description must be at least 15 characters.";
         if (trimmed.length > 1000) return "Description must not exceed 1000 characters.";
         return null;
       case "category":
@@ -234,14 +237,16 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "customCategory":
         if (form.category === "Others") {
           if (!trimmed) return "Specify Category is required.";
-          if (trimmed.length < 2) return "Specify Category must be at least 15 characters.";
+          if (isLost && trimmed.length < 2) return "Specify Category must be at least 15 characters.";
+          if (!isLost && trimmed.length < 10) return "Specify Category must be at least 10 characters.";
           if (trimmed.length > 100) return "Specify Category must not exceed 100 characters.";
         }
         return null;
       case "studentName":
         if (isStudent) {
           if (!trimmed) return "Student Name is required.";
-          if (trimmed.length < 2) return "Student Name must be at least 12 characters.";
+          if (isLost && trimmed.length < 2) return "Student Name must be at least 12 characters.";
+          if (!isLost && trimmed.length < 15) return "Student Name must be at least 15 characters.";
           if (trimmed.length > 100) return "Student Name must not exceed 100 characters.";
           if (/^[0-9]+$/.test(trimmed)) return "Student Name cannot be numbers only.";
           if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Student Name can only contain letters, spaces, hyphens, and apostrophes.";
@@ -250,7 +255,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "rollNo":
         if (isStudent) {
           if (!trimmed) return "Roll Number is required.";
-          if (trimmed.length < 3) return "Roll Number must be at least 8 characters.";
+          if (isLost && trimmed.length < 3) return "Roll Number must be at least 8 characters.";
+          if (!isLost && trimmed.length < 8) return "Roll Number must be at least 8 characters.";
           if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
           if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) return "Roll Number can only contain alphanumeric characters and hyphens.";
         }
@@ -278,7 +284,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "staffName":
         if (!isStudent) {
           if (!trimmed) return "Staff Name is required.";
-          if (trimmed.length < 2) return "Staff Name must be at least 12 characters.";
+          if (isLost && trimmed.length < 2) return "Staff Name must be at least 12 characters.";
+          if (!isLost && trimmed.length < 10) return "Staff Name must be at least 10 characters.";
           if (trimmed.length > 100) return "Staff Name must not exceed 100 characters.";
           if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Staff Name can only contain letters, spaces, hyphens, and apostrophes.";
         }
@@ -286,7 +293,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "employeeId":
         if (!isStudent) {
           if (!trimmed) return "Staff ID is required.";
-          if (trimmed.length < 3) return "Staff ID must be at least 3 characters.";
+          if (isLost && trimmed.length < 3) return "Staff ID must be at least 3 characters.";
+          if (!isLost && trimmed.length < 8) return "Staff ID must be at least 8 characters.";
           if (trimmed.length > 30) return "Staff ID must not exceed 30 characters.";
           if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) return "Staff ID can only contain alphanumeric characters and hyphens.";
         }
@@ -294,7 +302,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "department":
         if (!isStudent) {
           if (!trimmed) return "Department is required.";
-          if (trimmed.length < 2) return "Department must be at least 10 characters.";
+          if (isLost && trimmed.length < 2) return "Department must be at least 10 characters.";
+          if (!isLost && trimmed.length < 10) return "Department must be at least 10 characters.";
           if (trimmed.length > 100) return "Department must not exceed 100 characters.";
         }
         return null;
