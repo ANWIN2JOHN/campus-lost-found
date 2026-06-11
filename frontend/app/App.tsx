@@ -7,7 +7,7 @@ import {
   CheckCircle, Calendar, MapPin, Filter, Tag,
   AlertCircle, AlertTriangle, Check,
   Upload, ArrowLeft, Info, Building2, ArrowUp, ShieldCheck, Lock,
-  Recycle, Package, Heart, Loader2
+  Recycle, Package, Heart, Loader2, Menu
 } from "lucide-react";
 import { CardNameTooltip } from "./components/CardNameTooltip";
 import ClaimCountdownBar from "./components/ClaimCountdownBar";
@@ -2606,7 +2606,7 @@ function ExpiredItemsPage({
 
 // ─── Admin View ────────────────────────────────────────────────────────────
 
-function AdminSidebar({ active, setActive, onLogoutRequest }: { active: string; setActive: (s: string) => void; onLogoutRequest: () => void }) {
+function AdminSidebar({ active, setActive, onLogoutRequest, isOpen, onClose }: { active: string; setActive: (s: string) => void; onLogoutRequest: () => void; isOpen: boolean; onClose: () => void }) {
   const sections = [
     {
       label: "ITEMS",
@@ -2633,7 +2633,7 @@ function AdminSidebar({ active, setActive, onLogoutRequest }: { active: string; 
   ];
 
   return (
-    <aside className="w-52 bg-white flex flex-col min-h-screen shrink-0 border-r border-gray-200">
+    <aside className={`fixed inset-y-0 left-0 z-50 w-52 bg-white flex flex-col min-h-screen shrink-0 border-r border-gray-200 transition-transform duration-300 transform ${isOpen ? "translate-x-0" : "-translate-x-full"} md:relative md:translate-x-0`}>
       <div className="px-4 py-5 border-b border-gray-200">
         <div className="flex items-center gap-2.5">
           <img
@@ -2658,7 +2658,10 @@ function AdminSidebar({ active, setActive, onLogoutRequest }: { active: string; 
               {section.items.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setActive(item.id)}
+                  onClick={() => {
+                    setActive(item.id);
+                    onClose();
+                  }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all ${active === item.id
                     ? "bg-cyan-600 text-white"
                     : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -2682,7 +2685,10 @@ function AdminSidebar({ active, setActive, onLogoutRequest }: { active: string; 
             <p className="text-gray-500 text-[10px] truncate">admin@campus.edu</p>
           </div>
           <button
-            onClick={onLogoutRequest}
+            onClick={() => {
+              onClose();
+              onLogoutRequest();
+            }}
             title="Logout"
             className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 hover:shadow-sm transition-all duration-150"
           >
@@ -3506,7 +3512,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
 
               {isModalLoading ? (
                 <div className="space-y-4 animate-pulse">
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
                       <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
@@ -3516,7 +3522,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                       <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
                       <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
@@ -3526,7 +3532,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                       <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
                       <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
@@ -3541,7 +3547,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                 editStatus === "Returned" && (
                   <>
                     {/* Student Name + Roll Number */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Student Name <span style={{ color: "#ef4444" }}>*</span></label>
                         <input
@@ -3595,7 +3601,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                     </div>
 
                     {/* Phone + Email */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Phone Number <span style={{ color: "#ef4444" }}>*</span></label>
                         <input
@@ -3637,7 +3643,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                     </div>
 
                     {/* Returned Date + Time */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Date <span style={{ color: "#ef4444" }}>*</span></label>
                         <input
@@ -3910,6 +3916,7 @@ function SettingsPage({ onLogoutRequest }: { onLogoutRequest: () => void }) {
 function AdminView({ onLogout }: { onLogout: () => void }) {
   const [activeNav, setActiveNav] = useState("lost-items");
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Shared item state lifted here so pages can communicate
   const [sharedFoundItems, setSharedFoundItems] = useState<AdminFoundItem[]>([]);
@@ -4002,6 +4009,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
 
   const handleNavChange = (page: string) => {
     setActiveNav(page);
+    setMobileMenuOpen(false);
   };
 
   const openLogoutModal = () => setShowLogoutModal(true);
@@ -4043,8 +4051,42 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      <AdminSidebar active={activeNav} setActive={handleNavChange} onLogoutRequest={openLogoutModal} />
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/35 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      <AdminSidebar
+        active={activeNav}
+        setActive={handleNavChange}
+        onLogoutRequest={openLogoutModal}
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+      />
       <div className="flex-1 flex flex-col min-w-0">
+        <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1.5 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none"
+              title="Open Menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="flex items-center gap-1.5">
+              <img
+                src={campusLogo}
+                alt="Campus Logo"
+                className="w-6 h-6 object-contain"
+              />
+              <span className="text-gray-900 font-semibold text-xs leading-tight" style={{ fontFamily: "Outfit, sans-serif" }}>Campus L&F</span>
+            </div>
+          </div>
+          <div className="text-xs font-semibold text-gray-500 capitalize" style={{ fontFamily: "Outfit, sans-serif" }}>
+            {activeNav.replace("-", " ")}
+          </div>
+        </header>
         {renderMain()}
       </div>
       {showLogoutModal && (
