@@ -291,11 +291,11 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
         if (isStudent) {
           if (!trimmed) return "Email address is required.";
           if (!trimmed.endsWith("@kristujayanti.com") || trimmed !== trimmed.toLowerCase() || /\s/.test(value)) {
-            return "Only lowercase @kristujayanti.com email addresses are allowed.";
+            return "Only @kristujayanti.com domain are allowed.";
           }
           const username = trimmed.substring(0, trimmed.indexOf("@"));
           if (username !== form.rollNo) {
-            return "Email must match the entered Roll Number/Staff ID.";
+            return "Email must match the entered Roll Number.";
           }
         }
         return null;
@@ -336,11 +336,11 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
         if (!isStudent) {
           if (!trimmed) return "Email address is required.";
           if (!trimmed.endsWith("@kristujayanti.com") || trimmed !== trimmed.toLowerCase() || /\s/.test(value)) {
-            return "Only lowercase @kristujayanti.com email addresses are allowed.";
+            return "Only @kristujayanti.com domain are allowed.";
           }
           const username = trimmed.substring(0, trimmed.indexOf("@"));
           if (username !== form.employeeId) {
-            return "Email must match the entered Roll Number/Staff ID.";
+            return "Email must match the entered Staff ID.";
           }
         }
         return null;
