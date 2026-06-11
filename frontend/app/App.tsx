@@ -1154,16 +1154,67 @@ function PublicBrowseView({ type, onBack }: { type: "lost" | "found"; onBack: ()
 const BROWSE_PAGE_SIZE = 6;
 
 function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | "lost" | "found" }) {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const [locationInput, setLocationInput] = useState("");
+  const [debouncedLocation, setDebouncedLocation] = useState("");
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const [selectedCategory, setSelectedCategory] = useState("");
   const [countdownFilter, setCountdownFilter] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState(getTodayDateString());
+  const [dateFromInput, setDateFromInput] = useState(getTodayDateString());
+  const [dateFromQuery, setDateFromQuery] = useState(getTodayDateString());
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [backendItems, setBackendItems] = useState<BrowseItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Debounce and validate Search input
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed.length === 0) {
+      setSearchError(null);
+      setDebouncedSearch("");
+      return;
+    }
+
+    if (trimmed.length < 3) {
+      setSearchError("Please enter at least 3 characters to search.");
+      return;
+    }
+
+    setSearchError(null);
+    const handler = setTimeout(() => {
+      setDebouncedSearch(trimmed);
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [searchInput]);
+
+  // Debounce and validate Location input
+  useEffect(() => {
+    const trimmed = locationInput.trim();
+    if (trimmed.length === 0) {
+      setLocationError(null);
+      setDebouncedLocation("");
+      return;
+    }
+
+    if (trimmed.length < 3) {
+      setLocationError("Please enter at least 3 characters to search.");
+      return;
+    }
+
+    setLocationError(null);
+    const handler = setTimeout(() => {
+      setDebouncedLocation(trimmed);
+    }, 400);
+
+    return () => clearTimeout(handler);
+  }, [locationInput]);
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -1172,10 +1223,10 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
 
       try {
         const items = await getBrowseItems(initialFilter, {
-          search: searchTerm || undefined,
+          search: debouncedSearch || undefined,
           category: selectedCategory || undefined,
-          location: locationFilter || undefined,
-          dateFrom: dateFrom || undefined,
+          location: debouncedLocation || undefined,
+          dateFrom: dateFromQuery || undefined,
           dateTo: dateTo || undefined,
         });
 
@@ -1188,7 +1239,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
     };
 
     fetchItems();
-  }, [initialFilter, searchTerm, selectedCategory, locationFilter, dateFrom, dateTo]);
+  }, [initialFilter, debouncedSearch, selectedCategory, debouncedLocation, dateFromQuery, dateTo]);
 
   const filteredItems = useMemo(() => {
     return backendItems.filter((item) => {
@@ -1204,7 +1255,6 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
     [filteredItems, safePage]
   );
 
-  const applySearch = (v: string) => { setSearchTerm(v); setCurrentPage(1); };
   const applyCategory = (v: string) => { setSelectedCategory(v); setCurrentPage(1); };
   const applyCountdown = (v: string) => { setCountdownFilter(v); setCurrentPage(1); };
 
@@ -1231,11 +1281,6 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
         </p>
       </div>
 
-      {loadingItems && (
-        <div className="rounded-2xl border border-[#E5E7EB] bg-blue-50 p-4 text-sm text-blue-700">
-          Loading items from the database…
-        </div>
-      )}
       {fetchError && (
         <div className="rounded-2xl border border-[#FECACA] bg-red-50 p-4 text-sm text-red-700">
           {fetchError}
@@ -1251,11 +1296,16 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
             <input
               type="text"
               placeholder="Search by item name or description…"
-              value={searchTerm}
-              onChange={e => applySearch(e.target.value)}
+              value={searchInput}
+              onChange={e => { setSearchInput(e.target.value); setCurrentPage(1); }}
               className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all"
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
+            {searchError && (
+              <p className="text-xs text-red-500 mt-1.5" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                {searchError}
+              </p>
+            )}
           </div>
           {/* Location */}
           <div className="relative">
@@ -1263,11 +1313,16 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
             <input
               type="text"
               placeholder="Filter by location…"
-              value={locationFilter}
-              onChange={e => { setLocationFilter(e.target.value); setCurrentPage(1); }}
+              value={locationInput}
+              onChange={e => { setLocationInput(e.target.value); setCurrentPage(1); }}
               className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all"
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
+            {locationError && (
+              <p className="text-xs text-red-500 mt-1.5" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                {locationError}
+              </p>
+            )}
           </div>
           {/* Category */}
           <select
@@ -1298,19 +1353,25 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
             <Calendar size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="date"
-              value={dateFrom}
+              value={dateFromInput}
               max={getTodayDateString()}
               onChange={e => {
                 const val = e.target.value;
-                if (val && val > getTodayDateString()) {
-                  toast.error("Invalid Date", {
-                    description: "Future dates are not allowed.",
-                    duration: 3500,
-                  });
-                  return;
+                setDateFromInput(val);
+                if (!val) {
+                  setDateFromQuery("");
+                  setCurrentPage(1);
+                } else if (val.length === 10 && !isNaN(new Date(val).getTime())) {
+                  if (val > getTodayDateString()) {
+                    toast.error("Invalid Date", {
+                      description: "Future dates are not allowed.",
+                      duration: 3500,
+                    });
+                    return;
+                  }
+                  setDateFromQuery(val);
+                  setCurrentPage(1);
                 }
-                setDateFrom(val);
-                setCurrentPage(1);
               }}
               className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all"
               style={{ fontFamily: "DM Sans, sans-serif" }}
@@ -1321,9 +1382,18 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
           <p className="text-xs text-gray-400" style={{ fontFamily: "DM Sans, sans-serif" }}>
             <span className="font-semibold text-gray-600">{filteredItems.length}</span> item{filteredItems.length !== 1 ? "s" : ""} found
           </p>
-          {(searchTerm || selectedCategory || countdownFilter || locationFilter || dateFrom || dateTo) && (
+          {(searchInput || selectedCategory || countdownFilter || locationInput || dateFromQuery || dateTo) && (
             <button
-              onClick={() => { applySearch(""); applyCategory(""); applyCountdown(""); setLocationFilter(""); setDateFrom(""); setDateTo(""); setCurrentPage(1); }}
+              onClick={() => {
+                setSearchInput("");
+                setSelectedCategory("");
+                setCountdownFilter("");
+                setLocationInput("");
+                setDateFromInput("");
+                setDateFromQuery("");
+                setDateTo("");
+                setCurrentPage(1);
+              }}
               className="text-xs text-[#0891B2] hover:underline font-medium"
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
@@ -1333,8 +1403,33 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
         </div>
       </div>
 
-      {/* ── Cards Grid ──────────────────────────────────────── */}
-      {pageItems.length === 0 ? (
+      {/* ── Cards Grid & Skeleton Loading ───────────────────── */}
+      {loadingItems ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-pulse">
+          {Array.from({ length: BROWSE_PAGE_SIZE }).map((_, idx) => (
+            <div
+              key={`skeleton-${idx}`}
+              className="bg-white border border-[#E5E7EB] rounded-2xl p-4 space-y-4"
+              style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+            >
+              <div className="space-y-2">
+                <div className="h-5 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-3 bg-gray-100 rounded w-1/4"></div>
+              </div>
+              <div className="space-y-1.5">
+                <div className="h-3 bg-gray-200 rounded w-full"></div>
+                <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+              </div>
+              <div className="space-y-2 pt-3 border-t border-[#E5E7EB]">
+                <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                <div className="h-3 bg-gray-100 rounded w-1/3"></div>
+                <div className="h-3 bg-gray-100 rounded w-2/3"></div>
+              </div>
+              <div className="h-2 bg-gray-200 rounded w-full"></div>
+            </div>
+          ))}
+        </div>
+      ) : pageItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white border border-[#E5E7EB] rounded-2xl">
           <FolderOpen size={40} className="text-gray-200 mb-3" />
           <p className="text-gray-500 text-sm font-medium" style={{ fontFamily: "DM Sans, sans-serif" }}>No items match your search</p>
