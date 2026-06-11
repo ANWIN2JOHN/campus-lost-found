@@ -2520,12 +2520,11 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
   const [editStudentName, setEditStudentName] = useState("");
   const [editRollNo, setEditRollNo] = useState("");
   const [editClaimedDate, setEditClaimedDate] = useState("");
-  const [pendingReturnItem, setPendingReturnItem] = useState<AdminLostItem | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSaveLoading, setIsSaveLoading] = useState(false);
 
   const showSkeleton = isLoading || isRefreshing;
 
@@ -2558,28 +2557,6 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
 
   const clearFilters = () => { setSearchTerm(""); setFilterLocation(""); setCurrentPage(1); };
 
-  const confirmDelete = async () => {
-    if (isActionLoading || pendingDeleteId === null) return;
-    setIsActionLoading(true);
-    setIsRefreshing(true);
-    const idToDelete = pendingDeleteId;
-    try {
-      await deleteLostItem(idToDelete);
-      setItems(prev => prev.filter(item => item.id !== idToDelete));
-      setPendingDeleteId(null);
-      toast.success("Item deleted successfully");
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
-    } finally {
-      setIsActionLoading(false);
-      setIsRefreshing(false);
-    }
-  };
-
   const handleEdit = (item: AdminLostItem) => {
     if (item.status === "Returned") return;
     setEditItem(item); setEditStatus("Returned");
@@ -2587,8 +2564,8 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
     setEditStudentName(item.reporterName || ""); setEditRollNo(item.reporterRoll || ""); setEditClaimedDate(item.claimedDate || "");
   };
 
-  const handleSaveEdit = () => {
-    if (!editItem) return;
+  const handleSaveEdit = async () => {
+    if (!editItem || isSaveLoading) return;
     if (!editStatus || editStatus.trim() === "") {
       toast.error("Validation Error", { description: "Status field is required.", duration: 4000 });
       return;
@@ -2603,43 +2580,36 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
       toast.error("Validation Error", { description: nameErr, duration: 4000 });
       return;
     }
-    setEditStudentName(trimmedName);
-    setEditRollNo(editRollNo.trim());
+    const trimmedRoll = editRollNo.trim();
 
-    setPendingReturnItem(editItem);
-    setEditItem(null);
-  };
-
-  const confirmReturn = async () => {
-    if (!pendingReturnItem) return;
-    setIsActionLoading(true);
+    setIsSaveLoading(true);
     try {
-      await updateLostItemStatus(pendingReturnItem.id, editStudentName, editRollNo);
+      await updateLostItemStatus(editItem.id, trimmedName, trimmedRoll);
       const now = formatNow();
       onReturn({
-        id: pendingReturnItem.id,
+        id: editItem.id,
         type: "Lost",
-        name: pendingReturnItem.name,
-        reportedDate: pendingReturnItem.dateFound,
+        name: editItem.name,
+        reportedDate: editItem.dateFound,
         closedDate: now,
-        studentName: editStudentName,
-        rollNo: editRollNo,
-        location: pendingReturnItem.location,
-        reporter: pendingReturnItem.reporterName,
-        reporterPhone: pendingReturnItem.reporterPhone,
-        reporterEmail: pendingReturnItem.reporterEmail,
+        studentName: trimmedName,
+        rollNo: trimmedRoll,
+        location: editItem.location,
+        reporter: editItem.reporterName,
+        reporterPhone: editItem.reporterPhone,
+        reporterEmail: editItem.reporterEmail,
       });
-      setPendingReturnItem(null);
       toast.success("Item marked as Returned", {
-        description: `${pendingReturnItem.name} has been moved to Returned History.`,
+        description: `${editItem.name} has been moved to Returned History.`,
         duration: 3500,
       });
+      setEditItem(null);
       onRefresh?.();
     } catch (error) {
       console.error(error);
       toast.error("Failed to return item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
     } finally {
-      setIsActionLoading(false);
+      setIsSaveLoading(false);
     }
   };
 
@@ -2754,11 +2724,8 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => handleEdit(item)} className="text-cyan-600 hover:text-cyan-700 p-1 rounded hover:bg-cyan-50 transition-colors" title="Edit">
-                        <Edit2 size={13} />
-                      </button>
-                      <button onClick={() => setPendingDeleteId(item.id)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all duration-150" title="Delete">
-                        <Trash2 size={13} />
+                      <button onClick={() => handleEdit(item)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-cyan-50/50 border border-cyan-200 text-cyan-800 hover:bg-cyan-100/50 hover:border-cyan-300 hover:text-cyan-900 transition-all duration-150" title="Return">
+                        <Check size={13} />
                       </button>
                     </div>
                   </td>
@@ -2782,56 +2749,60 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
           <div className="bg-white rounded-xl border border-gray-200 shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-gray-900 mb-1" style={{ fontFamily: "Outfit, sans-serif" }}>Edit Item Status</h2>
             <p className="text-xs text-gray-400 mb-4" style={{ fontFamily: "DM Sans, sans-serif" }}>Changing to "Returned" requires confirmation</p>
-            <div className="space-y-4">
-              {/* Item name read-only */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
-                <span className="text-xs text-gray-500" style={{ fontFamily: "DM Sans, sans-serif" }}>Item:</span>
-                <span className="text-sm font-semibold text-gray-900" style={{ fontFamily: "DM Sans, sans-serif" }}>{editItem.name}</span>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-2" style={{ fontFamily: "DM Sans, sans-serif" }}>Status <span className="text-red-400">*</span></label>
-                <div
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 font-medium select-none"
-                  style={{ fontFamily: "DM Sans, sans-serif" }}
-                >
-                  Returned
+            {isSaveLoading ? (
+              <div className="space-y-4 animate-pulse py-4">
+                <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="animate-spin text-cyan-600" size={24} />
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Item name read-only */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 flex items-center gap-2">
+                  <span className="text-xs text-gray-500" style={{ fontFamily: "DM Sans, sans-serif" }}>Item:</span>
+                  <span className="text-sm font-semibold text-gray-900" style={{ fontFamily: "DM Sans, sans-serif" }}>{editItem.name}</span>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-2" style={{ fontFamily: "DM Sans, sans-serif" }}>Status <span className="text-red-400">*</span></label>
+                  <div
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500 font-medium select-none"
+                    style={{ fontFamily: "DM Sans, sans-serif" }}
+                  >
+                    Returned
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3 mt-5">
-              <button onClick={() => setEditItem(null)} className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium text-sm transition-colors" style={{ fontFamily: "DM Sans, sans-serif" }}>Cancel</button>
-              <button onClick={handleSaveEdit} className="flex-1 px-4 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 font-medium text-sm transition-colors" style={{ fontFamily: "DM Sans, sans-serif" }}>
-                Continue →
+              <button 
+                onClick={() => setEditItem(null)} 
+                disabled={isSaveLoading}
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                style={{ fontFamily: "DM Sans, sans-serif" }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSaveEdit} 
+                disabled={isSaveLoading}
+                className="flex-1 px-4 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2" 
+                style={{ fontFamily: "DM Sans, sans-serif" }}
+              >
+                {isSaveLoading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={14} />
+                    Processing...
+                  </>
+                ) : (
+                  "Continue →"
+                )}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {pendingReturnItem && (
-        <ReturnConfirmModal
-          itemName={pendingReturnItem.name}
-          itemId={`LOST-${String(pendingReturnItem.id).padStart(3, "0")}`}
-          itemType="Lost Item"
-          onConfirm={confirmReturn}
-          onClose={() => setPendingReturnItem(null)}
-          loading={isActionLoading}
-        />
-      )}
-
-      {pendingDeleteId !== null && (() => {
-        const target = items.find(i => i.id === pendingDeleteId);
-        return (
-          <DeleteConfirmModal
-            onConfirm={confirmDelete}
-            onClose={() => setPendingDeleteId(null)}
-            itemName={target?.name ?? ""}
-            itemId={`LOST-${String(pendingDeleteId).padStart(3, "0")}`}
-            itemType="Lost Item"
-            loading={isActionLoading}
-          />
-        );
-      })()}
     </main>
   );
 }
