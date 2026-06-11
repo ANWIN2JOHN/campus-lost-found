@@ -5,7 +5,7 @@ import {
   Search, FolderOpen, BookOpen, Phone, Bell, ChevronRight,
   CheckSquare, Settings, LogOut, Plus, Edit2, Trash2,
   CheckCircle, Calendar, MapPin, Filter, Tag,
-  AlertCircle, AlertTriangle,
+  AlertCircle, AlertTriangle, Check,
   Upload, ArrowLeft, Info, Building2, ArrowUp, ShieldCheck, Lock,
   Recycle, Package, Heart, Loader2
 } from "lucide-react";
@@ -13,7 +13,7 @@ import { CardNameTooltip } from "./components/CardNameTooltip";
 import ClaimCountdownBar from "./components/ClaimCountdownBar";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import campusLogo from "../imports/afa90946107debb396ffdb7284683a17-1.jpg";
-import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem, updateLostItemStatus, updateFoundItemStatus, deleteLostItem, deleteFoundItem, markItemDisposed } from "./api";
+import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem, updateLostItemStatus, updateFoundItemStatus, deleteLostItem, markItemDisposed } from "./api";
 import {
   categories,
   collectFromOptions,
@@ -2860,7 +2860,6 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
   const [editReturnedTime, setEditReturnedTime] = useState("");
   const [editRemarks, setEditRemarks] = useState("");
 
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -2889,26 +2888,6 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const safePage = Math.min(currentPage, totalPages);
   const pageItems = filteredItems.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
-
-  const confirmDelete = async () => {
-    if (isActionLoading || pendingDeleteId === null) return;
-    setIsActionLoading(true);
-    const idToDelete = pendingDeleteId;
-    try {
-      await deleteFoundItem(idToDelete);
-      setItems(prev => prev.filter(item => item.id !== idToDelete));
-      setPendingDeleteId(null);
-      toast.success("Item deleted successfully");
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to delete item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
 
   const openModal = (item: AdminFoundItem) => {
     if (item.status === "Returned") return;
@@ -3157,11 +3136,8 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => openModal(item)} className="text-cyan-600 hover:text-cyan-700 p-1.5 rounded-lg hover:bg-cyan-50 border border-transparent hover:border-cyan-200 transition-all duration-150" title="Edit">
-                        <Edit2 size={13} />
-                      </button>
-                      <button onClick={() => setPendingDeleteId(item.id)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all duration-150" title="Delete">
-                        <Trash2 size={13} />
+                      <button onClick={() => openModal(item)} className="text-cyan-600 hover:text-cyan-700 p-1.5 rounded-lg hover:bg-cyan-50 border border-transparent hover:border-cyan-200 transition-all duration-150" title="Return">
+                        <Check size={13} />
                       </button>
                     </div>
                   </td>
@@ -3485,19 +3461,6 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
         />
       )}
 
-      {pendingDeleteId !== null && (() => {
-        const target = items.find(i => i.id === pendingDeleteId);
-        return (
-          <DeleteConfirmModal
-            onConfirm={confirmDelete}
-            onClose={() => setPendingDeleteId(null)}
-            itemName={target?.name ?? ""}
-            itemId={`FOUND-${String(pendingDeleteId).padStart(3, "0")}`}
-            itemType="Found Item"
-            loading={isActionLoading}
-          />
-        );
-      })()}
     </main>
   );
 }
