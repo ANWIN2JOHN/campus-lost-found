@@ -207,6 +207,16 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [pageLoading, setPageLoading] = useState(true);
+  const [tabLoading, setTabLoading] = useState(false);
+  const [contactLoading, setContactLoading] = useState(false);
+  const [categoryLoading, setCategoryLoading] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPageLoading(false), 600);
+    return () => clearTimeout(timer);
+  }, []);
+
   const isLost = itemType === "lost";
   const isStudent = contactType === "student";
   const accent = isLost ? "#f59e0b" : "#10b981";
@@ -245,8 +255,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "customCategory":
         if (form.category === "Others") {
           if (!trimmed) return "Specify Category is required.";
-          if (isLost && trimmed.length < 2) return "Specify Category must be at least 15 characters.";
-          if (!isLost && trimmed.length < 10) return "Specify Category must be at least 10 characters.";
+          if (trimmed.length < 8) return "Specify Category must be at least 8 characters.";
           if (trimmed.length > 100) return "Specify Category must not exceed 100 characters.";
         }
         return null;
@@ -263,10 +272,9 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "rollNo":
         if (isStudent) {
           if (!trimmed) return "Roll Number is required.";
-          if (isLost && trimmed.length < 7) return "Roll Number must be at least 7 characters.";
-          if (!isLost && trimmed.length < 7) return "Roll Number must be at least 7 characters.";
+          if (trimmed.length < 7) return "Roll Number must be at least 7 characters.";
           if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
-          if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) return "Roll Number can only contain alphanumeric characters and hyphens.";
+          if (!/^[a-z0-9]+$/.test(trimmed)) return "Only lowercase alphanumeric characters allowed.";
         }
         return null;
       case "phone":
@@ -280,12 +288,12 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "email":
         if (isStudent) {
           if (!trimmed) return "Email address is required.";
-          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-          if (!emailRegex.test(trimmed)) {
-            return "Please enter a Kristu Jayanti email address.";
+          if (!trimmed.endsWith("@kristujayanti.com") || trimmed !== trimmed.toLowerCase() || /\s/.test(value)) {
+            return "Only lowercase @kristujayanti.com email addresses are allowed.";
           }
-          if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
-            return "Only @kristujayanti.com email addresses are allowed.";
+          const username = trimmed.substring(0, trimmed.indexOf("@"));
+          if (username !== form.rollNo) {
+            return "Email must match the entered Roll Number/Staff ID.";
           }
         }
         return null;
@@ -301,10 +309,9 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "employeeId":
         if (!isStudent) {
           if (!trimmed) return "Staff ID is required.";
-          if (isLost && trimmed.length < 3) return "Staff ID must be at least 3 characters.";
-          if (!isLost && trimmed.length < 8) return "Staff ID must be at least 8 characters.";
+          if (trimmed.length < 7) return "Staff ID must be at least 7 characters.";
           if (trimmed.length > 30) return "Staff ID must not exceed 30 characters.";
-          if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) return "Staff ID can only contain alphanumeric characters and hyphens.";
+          if (!/^[a-z0-9]+$/.test(trimmed)) return "Only lowercase alphanumeric characters allowed.";
         }
         return null;
       case "department":
@@ -326,12 +333,12 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "staffEmail":
         if (!isStudent) {
           if (!trimmed) return "Email address is required.";
-          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-          if (!emailRegex.test(trimmed)) {
-            return "Please enter a valid Kristu Jayanti institutional email address.";
+          if (!trimmed.endsWith("@kristujayanti.com") || trimmed !== trimmed.toLowerCase() || /\s/.test(value)) {
+            return "Only lowercase @kristujayanti.com email addresses are allowed.";
           }
-          if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
-            return "Only @kristujayanti.com email addresses are allowed.";
+          const username = trimmed.substring(0, trimmed.indexOf("@"));
+          if (username !== form.employeeId) {
+            return "Email must match the entered Roll Number/Staff ID.";
           }
         }
         return null;
@@ -353,7 +360,13 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
   };
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const val = e.target.value;
+    let val = e.target.value;
+    if (key === "rollNo" || key === "employeeId") {
+      val = val.toLowerCase();
+    }
+    if (key === "email" || key === "staffEmail") {
+      val = val.toLowerCase().replace(/\s+/g, "");
+    }
     setForm(f => {
       const next = { ...f, [key]: val };
       if (key === "category" && val !== "Others") {
@@ -366,11 +379,26 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       if (key === "category" && val !== "Others") {
         nextErrors.customCategory = "";
       }
+      if (key === "rollNo") {
+        nextErrors.email = "";
+      }
+      if (key === "employeeId") {
+        nextErrors.staffEmail = "";
+      }
       return nextErrors;
     });
+    if (key === "category") {
+      if (val === "Others") {
+        setCategoryLoading(true);
+        setTimeout(() => setCategoryLoading(false), 300);
+      } else {
+        setCategoryLoading(false);
+      }
+    }
   };
 
   const handleTypeSwitch = (t: "lost" | "found") => {
+    setTabLoading(true);
     setItemType(t);
     setForm({
       name: "", location: "", date: getTodayDateString(), collectFrom: "", description: "", category: "", image: "",
@@ -379,9 +407,11 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       customCategory: ""
     });
     setErrors({});
+    setTimeout(() => setTabLoading(false), 400);
   };
 
   const handleContactTypeSwitch = (t: "student" | "staff") => {
+    setContactLoading(true);
     setContactType(t);
     setErrors(prev => {
       const copy = { ...prev };
@@ -399,6 +429,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       }
       return copy;
     });
+    setTimeout(() => setContactLoading(false), 400);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -506,11 +537,11 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
         collectFrom: isLost ? undefined : form.collectFrom,
         contactType,
         studentName: isStudent ? form.studentName.trim() : undefined,
-        rollNo: isStudent ? form.rollNo.trim().toUpperCase() : undefined,
+        rollNo: isStudent ? form.rollNo.trim().toLowerCase() : undefined,
         studentPhone: isStudent ? form.phone.trim() : undefined,
         studentEmail: isStudent ? form.email.trim().toLowerCase() : undefined,
         staffName: !isStudent ? form.staffName.trim() : undefined,
-        employeeId: !isStudent ? form.employeeId.trim().toUpperCase() : undefined,
+        employeeId: !isStudent ? form.employeeId.trim().toLowerCase() : undefined,
         department: !isStudent ? form.department.trim() : undefined,
         staffPhone: !isStudent ? form.staffPhone.trim() : undefined,
         staffEmail: !isStudent ? form.staffEmail.trim().toLowerCase() : undefined,
@@ -565,6 +596,81 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
     );
   }
 
+  if (pageLoading) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-gray-50">
+        <div className="max-w-2xl mx-auto px-6 py-8">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden animate-pulse">
+            {/* Form header strip */}
+            <div className="px-6 py-5 border-b border-gray-200 space-y-3">
+              <div className="h-6 bg-gray-200 rounded w-1/3"></div>
+              <div className="h-10 bg-gray-200 rounded-xl w-48"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Item Name */}
+              <div className="space-y-2">
+                <div className="h-3 bg-gray-200 rounded w-20"></div>
+                <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+              </div>
+
+              {/* Location & Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-20"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <div className="h-3 bg-gray-200 rounded w-20"></div>
+                <div className="h-24 bg-gray-200 rounded-lg w-full"></div>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <div className="h-3 bg-gray-200 rounded w-20"></div>
+                <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+              </div>
+
+              {/* Contact Details */}
+              <div className="pt-4 border-t border-gray-200 space-y-4">
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-28"></div>
+                  <div className="h-3 bg-gray-200 rounded w-48"></div>
+                </div>
+                <div className="h-8 bg-gray-200 rounded-xl w-64"></div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-20"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer buttons skeleton */}
+            <div className="px-6 pb-6 flex gap-3">
+              <div className="h-10 bg-gray-200 rounded-xl flex-1"></div>
+              <div className="h-10 bg-gray-200 rounded-xl flex-1"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50">
       <form onSubmit={handleSubmit} noValidate className="max-w-2xl mx-auto px-6 py-8">
@@ -577,8 +683,9 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               <button
                 type="button"
                 onClick={() => handleTypeSwitch("lost")}
+                disabled={submitting}
                 className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isLost ? "bg-amber-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  } ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               >
                 <AlertCircle size={14} />
@@ -587,8 +694,9 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               <button
                 type="button"
                 onClick={() => handleTypeSwitch("found")}
+                disabled={submitting}
                 className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${!isLost ? "bg-emerald-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  } ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
                 style={{ fontFamily: "DM Sans, sans-serif" }}
               >
                 <CheckCircle size={14} />
@@ -601,109 +709,159 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
           </div>
 
           <div className="p-6 space-y-5">
-            {/* Item Name */}
-            <Field label="Item Name" required error={errors.name}>
-              <input
-                id="name"
-                value={form.name}
-                onChange={set("name")}
-                onBlur={() => handleBlur("name")}
-                placeholder={isLost ? "e.g. Black Leather Wallet" : "e.g. Blue Nike Backpack"}
-                className={`${inputCls} ${errors.name ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                style={{ fontFamily: "DM Sans, sans-serif" }}
-              />
-            </Field>
+            {tabLoading ? (
+              <div className="space-y-5 animate-pulse">
+                {/* Skeleton for item fields */}
+                <div className="space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-20"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-28"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-20"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                </div>
+                {!isLost && (
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-20"></div>
+                  <div className="h-24 bg-gray-200 rounded-lg w-full"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-gray-200 rounded w-20"></div>
+                  <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Item Name */}
+                <Field label="Item Name" required error={errors.name}>
+                  <input
+                    id="name"
+                    value={form.name}
+                    onChange={set("name")}
+                    onBlur={() => handleBlur("name")}
+                    disabled={submitting}
+                    placeholder={isLost ? "e.g. Black Leather Wallet" : "e.g. Blue Nike Backpack"}
+                    className={`${inputCls} ${errors.name ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                    style={{ fontFamily: "DM Sans, sans-serif" }}
+                  />
+                </Field>
 
-            {/* Location + Date row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label={isLost ? "Last Seen Location" : "Location Found"} required error={errors.location}>
-                <input
-                  id="location"
-                  value={form.location}
-                  onChange={set("location")}
-                  onBlur={() => handleBlur("location")}
-                  placeholder={isLost ? "e.g. Library 2nd Floor" : "e.g. Main Cafeteria"}
-                  className={`${inputCls} ${errors.location ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                  style={{ fontFamily: "DM Sans, sans-serif" }}
-                />
-              </Field>
-              <Field label={isLost ? "Date Lost" : "Date Found"} required error={errors.date}>
-                <input
-                  id="date"
-                  type="date"
-                  value={form.date}
-                  max={getTodayDateString()}
-                  onChange={set("date")}
-                  onBlur={() => handleBlur("date")}
-                  className={`${inputCls} ${errors.date ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                  style={{ colorScheme: "light", fontFamily: "DM Sans, sans-serif" }}
-                />
-              </Field>
-            </div>
+                {/* Location + Date row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label={isLost ? "Last Seen Location" : "Location Found"} required error={errors.location}>
+                    <input
+                      id="location"
+                      value={form.location}
+                      onChange={set("location")}
+                      onBlur={() => handleBlur("location")}
+                      disabled={submitting}
+                      placeholder={isLost ? "e.g. Library 2nd Floor" : "e.g. Main Cafeteria"}
+                      className={`${inputCls} ${errors.location ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                      style={{ fontFamily: "DM Sans, sans-serif" }}
+                    />
+                  </Field>
+                  <Field label={isLost ? "Date Lost" : "Date Found"} required error={errors.date}>
+                    <input
+                      id="date"
+                      type="date"
+                      value={form.date}
+                      max={getTodayDateString()}
+                      onChange={set("date")}
+                      onBlur={() => handleBlur("date")}
+                      disabled={submitting}
+                      className={`${inputCls} ${errors.date ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                      style={{ colorScheme: "light", fontFamily: "DM Sans, sans-serif" }}
+                    />
+                  </Field>
+                </div>
 
-            {/* Collect From — only for found items */}
-            {!isLost && (
-              <Field label="Where to Receive From" required error={errors.collectFrom}>
-                <select
-                  id="collectFrom"
-                  value={form.collectFrom}
-                  onChange={set("collectFrom")}
-                  onBlur={() => handleBlur("collectFrom")}
-                  className={`${inputCls} appearance-none ${errors.collectFrom ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                  style={{ fontFamily: "DM Sans, sans-serif" }}
-                >
-                  <option value="" disabled className="bg-white">Select reception/office</option>
-                  {collectFromOptions.map((o) => <option key={o} value={o} className="bg-white">{o}</option>)}
-                </select>
-              </Field>
-            )}
+                {/* Collect From — only for found items */}
+                {!isLost && (
+                  <Field label="Where to Receive From" required error={errors.collectFrom}>
+                    <select
+                      id="collectFrom"
+                      value={form.collectFrom}
+                      onChange={set("collectFrom")}
+                      onBlur={() => handleBlur("collectFrom")}
+                      disabled={submitting}
+                      className={`${inputCls} appearance-none ${errors.collectFrom ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                      style={{ fontFamily: "DM Sans, sans-serif" }}
+                    >
+                      <option value="" disabled className="bg-white">Select reception/office</option>
+                      {collectFromOptions.map((o) => <option key={o} value={o} className="bg-white">{o}</option>)}
+                    </select>
+                  </Field>
+                )}
 
-            {/* Description */}
-            <Field label="Description" required error={errors.description}>
-              <textarea
-                id="description"
-                rows={4}
-                value={form.description}
-                onChange={set("description")}
-                onBlur={() => handleBlur("description")}
-                placeholder="Describe the item clearly — colour, size, any distinguishing marks, contents if applicable..."
-                className={`${inputCls} resize-none ${errors.description ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                style={{ fontFamily: "DM Sans, sans-serif" }}
-              />
-            </Field>
+                {/* Description */}
+                <Field label="Description" required error={errors.description}>
+                  <textarea
+                    id="description"
+                    rows={4}
+                    value={form.description}
+                    onChange={set("description")}
+                    onBlur={() => handleBlur("description")}
+                    disabled={submitting}
+                    placeholder="Describe the item clearly — colour, size, any distinguishing marks, contents if applicable..."
+                    className={`${inputCls} resize-none ${errors.description ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                    style={{ fontFamily: "DM Sans, sans-serif" }}
+                  />
+                </Field>
 
-            {/* Category */}
-            <Field label="Category" required error={errors.category}>
-              <select
-                id="category"
-                value={form.category}
-                onChange={set("category")}
-                onBlur={() => handleBlur("category")}
-                className={`${inputCls} appearance-none ${errors.category ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                style={{ fontFamily: "DM Sans, sans-serif" }}
-              >
-                <option value="" disabled className="bg-white">Select a category</option>
-                {categories.map((cat) => (
-                  <option key={cat.name} value={cat.name} className="bg-white">
-                    {cat.icon} {cat.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+                {/* Category */}
+                <Field label="Category" required error={errors.category}>
+                  <select
+                    id="category"
+                    value={form.category}
+                    onChange={set("category")}
+                    onBlur={() => handleBlur("category")}
+                    disabled={submitting}
+                    className={`${inputCls} appearance-none ${errors.category ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                    style={{ fontFamily: "DM Sans, sans-serif" }}
+                  >
+                    <option value="" disabled className="bg-white">Select a category</option>
+                    {categories.map((cat) => (
+                      <option key={cat.name} value={cat.name} className="bg-white">
+                        {cat.icon} {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
 
-            {/* Specify Category when Others is selected */}
-            {form.category === "Others" && (
-              <Field label="Specify Category" required error={errors.customCategory}>
-                <input
-                  id="customCategory"
-                  value={form.customCategory || ""}
-                  onChange={set("customCategory")}
-                  onBlur={() => handleBlur("customCategory")}
-                  placeholder="Enter custom category"
-                  className={`${inputCls} ${errors.customCategory ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                  style={{ fontFamily: "DM Sans, sans-serif" }}
-                />
-              </Field>
+                {/* Specify Category when Others is selected */}
+                {form.category === "Others" && (
+                  categoryLoading ? (
+                    <div className="space-y-2 animate-pulse">
+                      <div className="h-3 bg-gray-200 rounded w-28"></div>
+                      <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                    </div>
+                  ) : (
+                    <Field label="Specify Category" required error={errors.customCategory}>
+                      <input
+                        id="customCategory"
+                        value={form.customCategory || ""}
+                        onChange={set("customCategory")}
+                        onBlur={() => handleBlur("customCategory")}
+                        disabled={submitting}
+                        placeholder="Enter custom category"
+                        className={`${inputCls} ${errors.customCategory ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                  )
+                )}
+              </>
             )}
 
             {/* ── Contact Type Switcher ─────────────────────── */}
@@ -724,8 +882,9 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                 <button
                   type="button"
                   onClick={() => handleContactTypeSwitch("student")}
+                  disabled={submitting}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
+                    } ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
@@ -734,8 +893,9 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                 <button
                   type="button"
                   onClick={() => handleContactTypeSwitch("staff")}
+                  disabled={submitting}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all duration-200 ${!isStudent ? "bg-cyan-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
-                    }`}
+                    } ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
                   style={{ fontFamily: "DM Sans, sans-serif" }}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>
@@ -744,138 +904,174 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               </div>
             </div>
 
-            {/* Student Contact Fields */}
-            <div
-              style={{
-                display: isStudent ? "block" : "none",
-                transition: "opacity 0.2s ease",
-                opacity: isStudent ? 1 : 0,
-              }}
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Student Name" required={isStudent} error={errors.studentName}>
-                  <input
-                    id="studentName"
-                    value={form.studentName}
-                    onChange={set("studentName")}
-                    onBlur={() => handleBlur("studentName")}
-                    placeholder="Enter full name"
-                    className={`${inputCls} ${errors.studentName ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-                <Field label="Roll Number" required={isStudent} error={errors.rollNo}>
-                  <input
-                    id="rollNo"
-                    value={form.rollNo}
-                    onChange={set("rollNo")}
-                    onBlur={() => handleBlur("rollNo")}
-                    placeholder="eg. 25MCAIOT21"
-                    className={`${inputCls} ${errors.rollNo ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
+            {contactLoading ? (
+              <div className="space-y-4 animate-pulse pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-20"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-gray-200 rounded w-24"></div>
+                    <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <Field label="Phone Number" required={isStudent} error={errors.phone}>
-                  <input
-                    id="phone"
-                    type="tel"
-                    value={form.phone}
-                    onChange={set("phone")}
-                    onBlur={() => handleBlur("phone")}
-                    placeholder="eg. +91 "
-                    className={`${inputCls} ${errors.phone ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-                <Field label="Email Address" required={isStudent} error={errors.email}>
-                  <input
-                    id="email"
-                    type="email"
-                    value={form.email}
-                    onChange={set("email")}
-                    onBlur={() => handleBlur("email")}
-                    placeholder="college email address"
-                    className={`${inputCls} ${errors.email ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-              </div>
-            </div>
+            ) : (
+              <>
+                {/* Student Contact Fields */}
+                <div
+                  style={{
+                    display: isStudent ? "block" : "none",
+                    transition: "opacity 0.2s ease",
+                    opacity: isStudent ? 1 : 0,
+                  }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Student Name" required={isStudent} error={errors.studentName}>
+                      <input
+                        id="studentName"
+                        value={form.studentName}
+                        onChange={set("studentName")}
+                        onBlur={() => handleBlur("studentName")}
+                        disabled={submitting}
+                        placeholder="Enter full name"
+                        className={`${inputCls} ${errors.studentName ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                    <Field label="Roll Number" required={isStudent} error={errors.rollNo}>
+                      <input
+                        id="rollNo"
+                        value={form.rollNo}
+                        onChange={set("rollNo")}
+                        onBlur={() => handleBlur("rollNo")}
+                        disabled={submitting}
+                        placeholder="eg. 25MCAIOT21"
+                        className={`${inputCls} ${errors.rollNo ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <Field label="Phone Number" required={isStudent} error={errors.phone}>
+                      <input
+                        id="phone"
+                        type="tel"
+                        value={form.phone}
+                        onChange={set("phone")}
+                        onBlur={() => handleBlur("phone")}
+                        disabled={submitting}
+                        placeholder="eg. +91 "
+                        className={`${inputCls} ${errors.phone ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                    <Field label="Email Address" required={isStudent} error={errors.email}>
+                      <input
+                        id="email"
+                        type="email"
+                        value={form.email}
+                        onChange={set("email")}
+                        onBlur={() => handleBlur("email")}
+                        disabled={submitting}
+                        placeholder="college email address"
+                        className={`${inputCls} ${errors.email ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                  </div>
+                </div>
 
-            {/* Staff Contact Fields */}
-            <div
-              style={{
-                display: !isStudent ? "block" : "none",
-                transition: "opacity 0.2s ease",
-                opacity: !isStudent ? 1 : 0,
-              }}
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Staff Name" required={!isStudent} error={errors.staffName}>
-                  <input
-                    id="staffName"
-                    value={form.staffName}
-                    onChange={set("staffName")}
-                    onBlur={() => handleBlur("staffName")}
-                    placeholder="Enter full name"
-                    className={`${inputCls} ${errors.staffName ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-                <Field label="Staff ID" required={!isStudent} error={errors.employeeId}>
-                  <input
-                    id="employeeId"
-                    value={form.employeeId}
-                    onChange={set("employeeId")}
-                    onBlur={() => handleBlur("employeeId")}
-                    placeholder="e.g. 23CS2067"
-                    className={`${inputCls} ${errors.employeeId ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-              </div>
-              <div className="mt-4">
-                <Field label="Department" required={!isStudent} error={errors.department}>
-                  <input
-                    id="department"
-                    value={form.department}
-                    onChange={set("department")}
-                    onBlur={() => handleBlur("department")}
-                    placeholder="e.g. Computer Science, Commerce, Library…,Admin"
-                    className={`${inputCls} ${errors.department ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <Field label="Phone Number" required={!isStudent} error={errors.staffPhone}>
-                  <input
-                    id="staffPhone"
-                    type="tel"
-                    value={form.staffPhone}
-                    onChange={set("staffPhone")}
-                    onBlur={() => handleBlur("staffPhone")}
-                    placeholder="eg. +91"
-                    className={`${inputCls} ${errors.staffPhone ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-                <Field label="Email Address" required={!isStudent} error={errors.staffEmail}>
-                  <input
-                    id="staffEmail"
-                    type="email"
-                    value={form.staffEmail}
-                    onChange={set("staffEmail")}
-                    onBlur={() => handleBlur("staffEmail")}
-                    placeholder="college email address"
-                    className={`${inputCls} ${errors.staffEmail ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
-                    style={{ fontFamily: "DM Sans, sans-serif" }}
-                  />
-                </Field>
-              </div>
-            </div>
+                {/* Staff Contact Fields */}
+                <div
+                  style={{
+                    display: !isStudent ? "block" : "none",
+                    transition: "opacity 0.2s ease",
+                    opacity: !isStudent ? 1 : 0,
+                  }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Staff Name" required={!isStudent} error={errors.staffName}>
+                      <input
+                        id="staffName"
+                        value={form.staffName}
+                        onChange={set("staffName")}
+                        onBlur={() => handleBlur("staffName")}
+                        disabled={submitting}
+                        placeholder="Enter full name"
+                        className={`${inputCls} ${errors.staffName ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                    <Field label="Staff ID" required={!isStudent} error={errors.employeeId}>
+                      <input
+                        id="employeeId"
+                        value={form.employeeId}
+                        onChange={set("employeeId")}
+                        onBlur={() => handleBlur("employeeId")}
+                        disabled={submitting}
+                        placeholder="e.g. 23CS2067"
+                        className={`${inputCls} ${errors.employeeId ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                  </div>
+                  <div className="mt-4">
+                    <Field label="Department" required={!isStudent} error={errors.department}>
+                      <input
+                        id="department"
+                        value={form.department}
+                        onChange={set("department")}
+                        onBlur={() => handleBlur("department")}
+                        disabled={submitting}
+                        placeholder="e.g. Computer Science, Commerce, Library…,Admin"
+                        className={`${inputCls} ${errors.department ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <Field label="Phone Number" required={!isStudent} error={errors.staffPhone}>
+                      <input
+                        id="staffPhone"
+                        type="tel"
+                        value={form.staffPhone}
+                        onChange={set("staffPhone")}
+                        onBlur={() => handleBlur("staffPhone")}
+                        disabled={submitting}
+                        placeholder="eg. +91"
+                        className={`${inputCls} ${errors.staffPhone ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                    <Field label="Email Address" required={!isStudent} error={errors.staffEmail}>
+                      <input
+                        id="staffEmail"
+                        type="email"
+                        value={form.staffEmail}
+                        onChange={set("staffEmail")}
+                        onBlur={() => handleBlur("staffEmail")}
+                        disabled={submitting}
+                        placeholder="college email address"
+                        className={`${inputCls} ${errors.staffEmail ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </>
+            )}
 
           </div>
 
@@ -884,7 +1080,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
             <button
               type="button"
               onClick={onBack}
-              className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-all"
+              disabled={submitting}
+              className={`flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-all ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
               Cancel
@@ -895,7 +1092,11 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
               className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${btnClass} ${submitting ? "opacity-50 cursor-not-allowed" : ""}`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
-              <Upload size={14} />
+              {submitting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Upload size={14} />
+              )}
               {submitting ? "Reporting..." : `Report ${isLost ? "Lost" : "Found"} Item`}
             </button>
           </div>
