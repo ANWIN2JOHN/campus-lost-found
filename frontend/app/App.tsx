@@ -1572,21 +1572,81 @@ function ItemHistoryPage({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // Local state for dynamically loaded history data:
+  const [localLostRecords, setLocalLostRecords] = useState<AdminLostItem[]>([]);
+  const [localFoundRecords, setLocalFoundRecords] = useState<AdminFoundItem[]>([]);
+  const [localDisposedHistory, setLocalDisposedHistory] = useState<DisposedRecord[]>([]);
+  const [localReturnedHistory, setLocalReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
+  const [isApiLoading, setIsApiLoading] = useState(false);
+
+  // Debounced filters & Local filtering loading state:
+  const [isFiltering, setIsFiltering] = useState(false);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [debouncedDateTo, setDebouncedDateTo] = useState("");
+  const [debouncedFilterType, setDebouncedFilterType] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const loadTabDataset = async () => {
+      setIsApiLoading(true);
+      try {
+        if (activeTab === "lost-not-found") {
+          const lost = await getAdminLostItems();
+          if (active) setLocalLostRecords(lost);
+        } else if (activeTab === "disposed") {
+          const history = await getHistory();
+          if (active) setLocalDisposedHistory(history.disposed);
+        } else if (activeTab === "returned") {
+          const [lost, found, history] = await Promise.all([
+            getAdminLostItems(),
+            getAdminFoundItems(),
+            getHistory(),
+          ]);
+          if (active) {
+            setLocalLostRecords(lost);
+            setLocalFoundRecords(found);
+            setLocalReturnedHistory(history.returned);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load history toggle dataset", error);
+      } finally {
+        if (active) setIsApiLoading(false);
+      }
+    };
+    loadTabDataset();
+    return () => {
+      active = false;
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    setIsFiltering(true);
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setDebouncedDateTo(dateTo);
+      setDebouncedFilterType(filterType);
+      setIsFiltering(false);
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchTerm, dateTo, filterType]);
+
   // Returned records come from the backend history endpoint plus current returned records.
   const returnedItems = [
-    ...returnedHistory.map(i => ({
+    ...localReturnedHistory.map(i => ({
       id: i.id, name: i.name, type: i.type,
       reportedDate: i.reportedDate, closedDate: i.closedDate,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
       reporter: i.reporter, reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
     })),
-    ...lostAdminRecords.filter(i => i.status === "Returned").map(i => ({
+    ...localLostRecords.filter(i => i.status === "Returned").map(i => ({
       id: i.id, name: i.name, type: "Lost" as const,
       reportedDate: i.dateFound, closedDate: i.claimedDate || i.lastUpdated,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
       reporter: i.reporterName, reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
     })),
-    ...foundAdminRecords.filter(i => i.status === "Returned").map(i => ({
+    ...localFoundRecords.filter(i => i.status === "Returned").map(i => ({
       id: i.id, name: i.name, type: "Found" as const,
       reportedDate: i.dateFound, closedDate: i.returnedDate || i.lastUpdated,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
@@ -1613,17 +1673,23 @@ function ItemHistoryPage({
     }
   };
 
-  const q = searchTerm.trim().toLowerCase();
+  const isSearchActive = debouncedSearchTerm.trim().length >= 5;
+  const showSearchError = searchTerm.trim().length > 0 && searchTerm.trim().length < 5;
 
-  const dateFilteredReturned = returnedItems.filter(r => matchesExactDate(r.closedDate, dateTo));
-  const filteredReturned = dateFilteredReturned.filter(r => {
-    const matchesType = !filterType || r.type === filterType;
-    const matchesSearch = !q || r.name.toLowerCase().includes(q) || r.location.toLowerCase().includes(q);
-    return matchesType && matchesSearch;
+  const dateAndTypeFilteredReturned = returnedItems.filter(r => {
+    const matchesType = !debouncedFilterType || r.type === debouncedFilterType;
+    const matchesDate = matchesExactDate(r.closedDate, debouncedDateTo);
+    return matchesType && matchesDate;
   });
+  const filteredReturned = isSearchActive
+    ? dateAndTypeFilteredReturned.filter(r => {
+        const qStr = debouncedSearchTerm.trim().toLowerCase();
+        return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
+      })
+    : dateAndTypeFilteredReturned;
 
   // Lost & Not Found: lost items that expired (60+ days) and were never returned
-  const lostNotFoundRecords = lostAdminRecords
+  const lostNotFoundRecords = localLostRecords
     .filter(i => i.status === "Not Returned" && getDaysInfo(i.dateFound).isExpired)
     .map(i => ({
       id: i.id, name: i.name, reportedDate: i.dateFound,
@@ -1632,17 +1698,21 @@ function ItemHistoryPage({
       daysElapsed: getDaysInfo(i.dateFound).daysElapsed,
     }));
 
-  const dateFilteredLostNotFound = lostNotFoundRecords.filter(r => matchesExactDate(r.reportedDate, dateTo));
-  const filteredLostNotFound = dateFilteredLostNotFound.filter(r => {
-    return !q || r.name.toLowerCase().includes(q) || r.location.toLowerCase().includes(q);
-  });
+  const dateFilteredLostNotFound = lostNotFoundRecords.filter(r => matchesExactDate(r.reportedDate, debouncedDateTo));
+  const filteredLostNotFound = isSearchActive
+    ? dateFilteredLostNotFound.filter(r => {
+        const qStr = debouncedSearchTerm.trim().toLowerCase();
+        return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
+      })
+    : dateFilteredLostNotFound;
 
-  const dateFilteredDisposed = disposedHistory.filter(r => matchesExactDate(r.disposedDate, dateTo));
-  const filteredDisposed = dateFilteredDisposed.filter(r => {
-    const matchesType = !filterType || r.type === filterType;
-    const matchesSearch = !q || r.name.toLowerCase().includes(q) || r.location.toLowerCase().includes(q);
-    return matchesType && matchesSearch;
-  });
+  const dateFilteredDisposed = localDisposedHistory.filter(r => matchesExactDate(r.disposedDate, debouncedDateTo));
+  const filteredDisposed = isSearchActive
+    ? dateFilteredDisposed.filter(r => {
+        const qStr = debouncedSearchTerm.trim().toLowerCase();
+        return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
+      })
+    : dateFilteredDisposed;
 
   const inputCls = "w-full bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/15 transition-all py-2.5";
 
@@ -1658,7 +1728,7 @@ function ItemHistoryPage({
         {[
           { label: "Total Returned", value: returnedItems.length, dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
           { label: "Lost & Not Found", value: lostNotFoundRecords.length, dot: "bg-red-400", card: "bg-red-50 border-red-200", txt: "text-red-700" },
-          { label: "Disposed Items", value: disposedHistory.length, dot: "bg-gray-400", card: "bg-gray-50 border-gray-200", txt: "text-gray-600" },
+          { label: "Disposed Items", value: localDisposedHistory.length, dot: "bg-gray-400", card: "bg-gray-50 border-gray-200", txt: "text-gray-600" },
           { label: "Found → Returned", value: returnedItems.filter(r => r.type === "Found").length, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
         ].map((s, i) => (
           <div key={i} className={`border rounded-2xl p-4 flex items-center gap-3 shadow-sm ${s.card}`}>
@@ -1676,7 +1746,7 @@ function ItemHistoryPage({
         {([
           { id: "returned", label: `Returned (${returnedItems.length})`, color: "bg-emerald-500" },
           { id: "lost-not-found", label: `Lost & Not Found (${lostNotFoundRecords.length})`, color: "bg-red-500" },
-          { id: "disposed", label: `Disposed (${disposedHistory.length})`, color: "bg-gray-500" },
+          { id: "disposed", label: `Disposed (${localDisposedHistory.length})`, color: "bg-gray-500" },
         ] as { id: "returned" | "lost-not-found" | "disposed"; label: string; color: string }[]).map(t => (
           <button
             key={t.id}
@@ -1691,14 +1761,21 @@ function ItemHistoryPage({
 
       {/* Filters */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 mb-4">
-        <div className={`grid grid-cols-1 gap-3 ${activeTab === "lost-not-found" ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Search item name, location…" value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className={inputCls + " pl-9"} style={{ fontFamily: "DM Sans, sans-serif" }} />
+        <div className={`grid grid-cols-1 gap-3 ${activeTab === "disposed" ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+          <div className="relative flex flex-col justify-center">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="text" placeholder="Search item name, location…" value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className={inputCls + " pl-9"} style={{ fontFamily: "DM Sans, sans-serif" }} />
+            </div>
+            {showSearchError && (
+              <p className="text-red-500 text-[10px] mt-1 font-medium animate-fade-in" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                Please enter at least 5 characters to search.
+              </p>
+            )}
           </div>
-          {activeTab !== "lost-not-found" && (
+          {activeTab !== "disposed" && (
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
               className={inputCls + " px-3 appearance-none"} style={{ fontFamily: "DM Sans, sans-serif" }}>
               <option value="">All Types</option>
@@ -1747,7 +1824,7 @@ function ItemHistoryPage({
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
+              {isApiLoading || isFiltering ? (
                 Array.from({ length: 5 }).map((_, idx) => (
                   <tr key={`skeleton-${idx}`} className="border-b border-gray-100 animate-pulse">
                     {activeTab === "returned" ? (
@@ -1778,19 +1855,17 @@ function ItemHistoryPage({
                     )}
                   </tr>
                 ))
-              ) : returnedItems.length === 0 && lostNotFoundRecords.length === 0 && disposedHistory.length === 0 ? (
+              ) : localReturnedHistory.length === 0 && localLostRecords.length === 0 && localDisposedHistory.length === 0 ? (
                 <tr>
                   <td colSpan={activeTab === "returned" ? 8 : activeTab === "lost-not-found" ? 5 : 3} className="px-4 py-10 text-center text-gray-400 text-sm font-medium" style={{ fontFamily: "DM Sans, sans-serif" }}>
                     No history records available.
                   </td>
                 </tr>
               ) : activeTab === "lost-not-found" ? (
-                lostNotFoundRecords.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No lost &amp; not found items yet. Lost items unclaimed after 60 days will appear here.</td></tr>
-                ) : dateTo && dateFilteredLostNotFound.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No lost &amp; not found items found for the selected date.</td></tr>
-                ) : filteredLostNotFound.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No matching lost &amp; not found items found.</td></tr>
+                dateFilteredLostNotFound.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No Lost &amp; Not Found items found for the selected filters.</td></tr>
+                ) : isSearchActive && filteredLostNotFound.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No matching Lost &amp; Not Found items found.</td></tr>
                 ) : filteredLostNotFound.map((item, i) => {
                   const elapsed = item.daysElapsed;
                   return (
@@ -1804,11 +1879,9 @@ function ItemHistoryPage({
                   );
                 })
               ) : activeTab === "returned" ? (
-                returnedItems.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">No returned items found</td></tr>
-                ) : dateTo && dateFilteredReturned.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">No returned items found for the selected date.</td></tr>
-                ) : filteredReturned.length === 0 ? (
+                dateAndTypeFilteredReturned.length === 0 ? (
+                  <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">No returned items found for the selected filters.</td></tr>
+                ) : isSearchActive && filteredReturned.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">No matching returned items found.</td></tr>
                 ) : filteredReturned.map((item, i) => (
                   <tr key={`ret-${item.type}-${item.id}`} className={`border-b border-gray-100 hover:bg-emerald-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
@@ -1825,11 +1898,9 @@ function ItemHistoryPage({
                   </tr>
                 ))
               ) : (
-                disposedHistory.length === 0 ? (
-                  <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">No disposed items yet. Items disposed from the Expired Items module will appear here.</td></tr>
-                ) : dateTo && dateFilteredDisposed.length === 0 ? (
-                  <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">No disposed items found for the selected date.</td></tr>
-                ) : filteredDisposed.length === 0 ? (
+                dateFilteredDisposed.length === 0 ? (
+                  <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">No disposed items found for the selected filters.</td></tr>
+                ) : isSearchActive && filteredDisposed.length === 0 ? (
                   <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">No matching disposed items found.</td></tr>
                 ) : filteredDisposed.map((item, i) => (
                   <tr key={`dis-${item.type}-${item.id}-${i}`} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
@@ -3487,28 +3558,37 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [returnedHistory, setReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshData = async () => {
+  const loadNavData = async (nav: string) => {
     setIsLoading(true);
     try {
-      const [lost, found, history] = await Promise.all([
-        getAdminLostItems(),
-        getAdminFoundItems(),
-        getHistory(),
-      ]);
-
-      setSharedLostItems(lost);
-      setSharedFoundItems(found);
-      setReturnedHistory(history.returned);
-      setDisposedHistory(history.disposed);
+      if (nav === "lost-items") {
+        const lost = await getAdminLostItems();
+        setSharedLostItems(lost);
+      } else if (nav === "found-items") {
+        const found = await getAdminFoundItems();
+        setSharedFoundItems(found);
+      } else if (nav === "expired-items") {
+        const [lost, found] = await Promise.all([
+          getAdminLostItems(),
+          getAdminFoundItems(),
+        ]);
+        setSharedLostItems(lost);
+        setSharedFoundItems(found);
+      }
+      // Note: History page loads its own active-tab data dynamically inside ItemHistoryPage, so no fetching here.
     } catch (error) {
-      console.error("Failed to load live dashboard data", error);
-      toast.error("Unable to load live dashboard data", {
+      console.error(`Failed to load ${nav} data`, error);
+      toast.error("Unable to load dashboard data", {
         description: error instanceof Error ? error.message : "Please check the Render API connection.",
         duration: 4500,
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const refreshData = async () => {
+    await loadNavData(activeNav);
   };
 
   const handleItemCreated = async (type: "lost" | "found") => {
@@ -3533,8 +3613,8 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   };
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    loadNavData(activeNav);
+  }, [activeNav]);
 
   const handleDispose = (record: DisposedRecord) => {
     setDisposedHistory(prev => [record, ...prev]);
