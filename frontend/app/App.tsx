@@ -81,8 +81,10 @@ function validateReturnStudentName(name: string): string | null {
 function validateReturnRollNo(roll: string): string | null {
   const trimmed = roll.trim();
   if (!trimmed) return "Roll number is required.";
-  if (trimmed.length < 5 || trimmed.length > 30 || !/^[A-Za-z0-9\-]+$/.test(trimmed)) {
-    return "Enter a valid Roll Number.";
+  if (trimmed.length < 7) return "Roll Number must be at least 7 characters.";
+  if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
+  if (!/^[a-z0-9]+$/.test(trimmed)) {
+    return "Only lowercase alphanumeric characters allowed.";
   }
   return null;
 }
@@ -96,15 +98,15 @@ function validateReturnPhone(phone: string): string | null {
   return null;
 }
 
-function validateReturnEmail(email: string): string | null {
+function validateReturnEmail(email: string, rollNo: string): string | null {
   const trimmed = email.trim();
-  if (!trimmed) return "Please enter a Kristu Jayanti email address.";
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  if (!emailRegex.test(trimmed)) {
-    return "Please enter a Kristu Jayanti email address.";
+  if (!trimmed) return "Please enter a college email address.";
+  if (!trimmed.endsWith("@kristujayanti.com") || /\s/.test(trimmed)) {
+    return "Only @kristujayanti.com domain are allowed.";
   }
-  if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
-    return "Only @kristujayanti.com email addresses are allowed.";
+  const username = trimmed.split("@")[0];
+  if (username !== rollNo.trim()) {
+    return "Email must match the entered Roll Number.";
   }
   return null;
 }
@@ -3094,13 +3096,13 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
     !validateReturnStudentName(editStudentName) &&
     !validateReturnRollNo(editRollNo) &&
     !validateReturnPhone(editPhone) &&
-    !validateReturnEmail(editEmail) &&
+    !validateReturnEmail(editEmail, editRollNo) &&
     !validateReturnedDate(editReturnedDate, editItem?.dateFound ?? "") &&
     !validateReturnedTime(editReturnedTime, editReturnedDate) &&
     !validateReturnRemarks(editRemarks);
 
-  const handleSaveEdit = () => {
-    if (!editItem) return;
+  const handleSaveEdit = async () => {
+    if (!editItem || isSaveLoading) return;
     if (editStatus === "Returned") {
       const errors: Record<string, string> = {};
       const nameErr = validateReturnStudentName(editStudentName);
@@ -3109,7 +3111,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
       if (rollErr) errors.roll = rollErr;
       const phoneErr = validateReturnPhone(editPhone);
       if (phoneErr) errors.phone = phoneErr;
-      const emailErr = validateReturnEmail(editEmail);
+      const emailErr = validateReturnEmail(editEmail, editRollNo);
       if (emailErr) errors.email = emailErr;
       const dateErr = validateReturnedDate(editReturnedDate, editItem.dateFound);
       if (dateErr) errors.date = dateErr;
@@ -3143,64 +3145,43 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
         }
         return;
       }
+
       setFieldErrors({});
       setIsSaveLoading(true);
-      setEditStudentName(editStudentName.trim());
-      setEditRollNo(editRollNo.trim().toUpperCase());
-      setEditPhone(editPhone.trim());
-      setEditEmail(editEmail.trim().toLowerCase());
-      setEditRemarks(editRemarks.trim());
-      setPendingReturnItem(editItem);
-      closeModal();
-      setIsSaveLoading(false);
-    }
-  };
 
-  const confirmReturn = async () => {
-    if (!pendingReturnItem) return;
+      const trimmedName = editStudentName.trim();
+      const trimmedRoll = editRollNo.trim().toLowerCase();
+      const trimmedPhone = editPhone.trim();
+      const trimmedEmail = editEmail.trim().toLowerCase();
 
-    const hasErrors =
-      validateReturnStudentName(editStudentName) ||
-      validateReturnRollNo(editRollNo) ||
-      validateReturnPhone(editPhone) ||
-      validateReturnEmail(editEmail) ||
-      validateReturnedDate(editReturnedDate, pendingReturnItem.dateFound) ||
-      validateReturnedTime(editReturnedTime, editReturnedDate) ||
-      validateReturnRemarks(editRemarks);
-
-    if (hasErrors) {
-      toast.error("Cannot proceed: some fields are invalid.");
-      return;
-    }
-
-    setIsActionLoading(true);
-    try {
-      await updateFoundItemStatus(pendingReturnItem.id, editStudentName, editRollNo, editPhone, editEmail);
-      const now = formatNow();
-      onReturn({
-        id: pendingReturnItem.id,
-        type: "Found",
-        name: pendingReturnItem.name,
-        reportedDate: pendingReturnItem.dateFound,
-        closedDate: now,
-        studentName: editStudentName,
-        rollNo: editRollNo,
-        location: pendingReturnItem.location,
-        reporter: "",
-        reporterPhone: "",
-        reporterEmail: "",
-      });
-      setPendingReturnItem(null);
-      toast.success("Item marked as Returned", {
-        description: `${pendingReturnItem.name} has been moved to Returned History.`,
-        duration: 3500,
-      });
-      onRefresh?.();
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to return item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
-    } finally {
-      setIsActionLoading(false);
+      try {
+        await updateFoundItemStatus(editItem.id, trimmedName, trimmedRoll, trimmedPhone, trimmedEmail);
+        const now = formatNow();
+        onReturn({
+          id: editItem.id,
+          type: "Found",
+          name: editItem.name,
+          reportedDate: editItem.dateFound,
+          closedDate: now,
+          studentName: trimmedName,
+          rollNo: trimmedRoll,
+          location: editItem.location,
+          reporter: "",
+          reporterPhone: "",
+          reporterEmail: "",
+        });
+        toast.success("Item marked as Returned", {
+          description: `${editItem.name} has been moved to Returned History.`,
+          duration: 3500,
+        });
+        closeModal();
+        onRefresh?.();
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to return item", { description: error instanceof Error ? error.message : "API Error", duration: 4000 });
+      } finally {
+        setIsSaveLoading(false);
+      }
     }
   };
 
@@ -3439,7 +3420,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         <input
                           id="edit-student-name"
                           type="text"
-                          disabled={isSaveLoading || isActionLoading}
+                          disabled={isSaveLoading}
                           value={editStudentName}
                           onChange={e => { setEditStudentName(e.target.value); setFieldErrors(prev => ({ ...prev, name: "" })); }}
                           onBlur={e => setFieldErrors(prev => ({ ...prev, name: validateReturnStudentName(e.target.value) || "" }))}
@@ -3454,11 +3435,31 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         <input
                           id="edit-roll-no"
                           type="text"
-                          disabled={isSaveLoading || isActionLoading}
+                          disabled={isSaveLoading}
                           value={editRollNo}
-                          onChange={e => { setEditRollNo(e.target.value.toUpperCase()); setFieldErrors(prev => ({ ...prev, roll: "" })); }}
-                          onBlur={e => setFieldErrors(prev => ({ ...prev, roll: validateReturnRollNo(e.target.value) || "" }))}
-                          placeholder="e.g. 25-BCAIOT-23"
+                          onChange={e => {
+                            const val = e.target.value.toLowerCase();
+                            setEditRollNo(val);
+                            setFieldErrors(prev => {
+                              const updatedErrors = { ...prev, roll: validateReturnRollNo(val) || "" };
+                              if (editEmail) {
+                                updatedErrors.email = validateReturnEmail(editEmail, val) || "";
+                              }
+                              return updatedErrors;
+                            });
+                          }}
+                          onBlur={e => {
+                            const val = e.target.value.trim().toLowerCase();
+                            setEditRollNo(val);
+                            setFieldErrors(prev => {
+                              const updatedErrors = { ...prev, roll: validateReturnRollNo(val) || "" };
+                              if (editEmail) {
+                                updatedErrors.email = validateReturnEmail(editEmail, val) || "";
+                              }
+                              return updatedErrors;
+                            });
+                          }}
+                          placeholder="e.g. 25bcaiot23"
                           className={fInput}
                           style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.roll ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                         />
@@ -3473,7 +3474,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         <input
                           id="edit-phone"
                           type="tel"
-                          disabled={isSaveLoading || isActionLoading}
+                          disabled={isSaveLoading}
                           value={editPhone}
                           onChange={e => { setEditPhone(e.target.value); setFieldErrors(prev => ({ ...prev, phone: "" })); }}
                           onBlur={e => setFieldErrors(prev => ({ ...prev, phone: validateReturnPhone(e.target.value) || "" }))}
@@ -3488,11 +3489,19 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         <input
                           id="edit-email"
                           type="email"
-                          disabled={isSaveLoading || isActionLoading}
+                          disabled={isSaveLoading}
                           value={editEmail}
-                          onChange={e => { setEditEmail(e.target.value); setFieldErrors(prev => ({ ...prev, email: "" })); }}
-                          onBlur={e => setFieldErrors(prev => ({ ...prev, email: validateReturnEmail(e.target.value) || "" }))}
-                          placeholder="mail@kristujayanti.com"
+                          onChange={e => {
+                            const val = e.target.value.toLowerCase().replace(/\s/g, "");
+                            setEditEmail(val);
+                            setFieldErrors(prev => ({ ...prev, email: validateReturnEmail(val, editRollNo) || "" }));
+                          }}
+                          onBlur={e => {
+                            const val = e.target.value.trim().toLowerCase();
+                            setEditEmail(val);
+                            setFieldErrors(prev => ({ ...prev, email: validateReturnEmail(val, editRollNo) || "" }));
+                          }}
+                          placeholder="rollno@kristujayanti.com"
                           className={fInput}
                           style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.email ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
                         />
@@ -3507,7 +3516,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         <input
                           id="edit-returned-date"
                           type="date"
-                          disabled={isSaveLoading || isActionLoading}
+                          disabled={isSaveLoading}
                           value={editReturnedDate}
                           max={getTodayDateString()}
                           onChange={e => { setEditReturnedDate(e.target.value); setFieldErrors(prev => ({ ...prev, date: "", time: "" })); }}
@@ -3529,7 +3538,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         <input
                           id="edit-returned-time"
                           type="time"
-                          disabled={isSaveLoading || isActionLoading}
+                          disabled={isSaveLoading}
                           value={editReturnedTime}
                           onChange={e => { setEditReturnedTime(e.target.value); setFieldErrors(prev => ({ ...prev, time: "" })); }}
                           onBlur={e => setFieldErrors(prev => ({ ...prev, time: validateReturnedTime(e.target.value, editReturnedDate) || "" }))}
@@ -3552,7 +3561,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                 <textarea
                   id="edit-remarks"
                   rows={3}
-                  disabled={isModalLoading || isSaveLoading || isActionLoading}
+                  disabled={isModalLoading || isSaveLoading}
                   value={editRemarks}
                   onChange={e => { setEditRemarks(e.target.value); setFieldErrors(prev => ({ ...prev, remarks: "" })); }}
                   placeholder="Add any additional notes or remarks…"
@@ -3586,28 +3595,28 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
             <div style={{ padding: "0 24px 20px", display: "flex", gap: 10 }}>
               <button
                 onClick={closeModal}
-                disabled={isSaveLoading || isActionLoading}
-                style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: (isSaveLoading || isActionLoading) ? "not-allowed" : "pointer", transition: "all 0.15s" }}
-                onMouseEnter={e => { if (!isSaveLoading && !isActionLoading) (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
-                onMouseLeave={e => { if (!isSaveLoading && !isActionLoading) (e.currentTarget as HTMLButtonElement).style.background = "white"; }}
+                disabled={isSaveLoading}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: isSaveLoading ? "not-allowed" : "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { if (!isSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
+                onMouseLeave={e => { if (!isSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "white"; }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
-                disabled={isSaveLoading || isModalLoading || isActionLoading || Object.values(fieldErrors).some(err => !!err)}
+                disabled={isSaveLoading || isModalLoading || !isReturnValid || Object.values(fieldErrors).some(err => !!err)}
                 style={{
                   flex: 1, padding: "10px 0", borderRadius: 9, border: "none",
-                  background: (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) ? "#0891b2" : "#e5e7eb",
-                  color: (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) ? "white" : "#9ca3af",
+                  background: (!isSaveLoading && !isModalLoading && isReturnValid && !Object.values(fieldErrors).some(err => !!err)) ? "#0891b2" : "#e5e7eb",
+                  color: (!isSaveLoading && !isModalLoading && isReturnValid && !Object.values(fieldErrors).some(err => !!err)) ? "white" : "#9ca3af",
                   fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
-                  cursor: (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) ? "pointer" : "not-allowed",
+                  cursor: (!isSaveLoading && !isModalLoading && isReturnValid && !Object.values(fieldErrors).some(err => !!err)) ? "pointer" : "not-allowed",
                   transition: "all 0.15s",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  opacity: (isSaveLoading || isActionLoading) ? 0.85 : 1,
+                  opacity: isSaveLoading ? 0.85 : 1,
                 }}
-                onMouseEnter={e => { if (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
-                onMouseLeave={e => { if (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
+                onMouseEnter={e => { if (!isSaveLoading && !isModalLoading && isReturnValid && !Object.values(fieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
+                onMouseLeave={e => { if (!isSaveLoading && !isModalLoading && isReturnValid && !Object.values(fieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
               >
                 {isSaveLoading ? (
                   <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
@@ -3621,17 +3630,6 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
             </div>
           </div>
         </div>
-      )}
-
-      {pendingReturnItem && (
-        <ReturnConfirmModal
-          itemName={pendingReturnItem.name}
-          itemId={`FOUND-${String(pendingReturnItem.id).padStart(3, "0")}`}
-          itemType="Found Item"
-          onConfirm={confirmReturn}
-          onClose={() => setPendingReturnItem(null)}
-          loading={isActionLoading}
-        />
       )}
 
     </main>
