@@ -113,15 +113,23 @@ function validateReturnEmail(email: string, rollNo: string): string | null {
 
 function validateReturnedDate(date: string, foundDateStr: string): string | null {
   if (!date) return "Returned Date is required.";
-  const returnDate = new Date(date + "T00:00:00");
+  const parts = date.split("-").map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) {
+    return "Returned Date is not a valid date.";
+  }
+  const returnDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  returnDate.setHours(0, 0, 0, 0);
+
   if (isNaN(returnDate.getTime())) return "Returned Date is not a valid date.";
   const today = new Date(); today.setHours(0, 0, 0, 0);
   if (returnDate > today) return "Returned Date cannot be a future date.";
   if (foundDateStr) {
-    const parsedFound = new Date(foundDateStr);
+    const parsedFound = parseDateForCountdown(foundDateStr);
     if (!isNaN(parsedFound.getTime())) {
       parsedFound.setHours(0, 0, 0, 0);
-      if (returnDate < parsedFound) return "Returned Date cannot be before the item's found date.";
+      if (returnDate.getTime() < parsedFound.getTime()) {
+        return "Returned Date cannot be before the item's found date.";
+      }
     }
   }
   return null;
