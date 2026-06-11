@@ -1682,7 +1682,7 @@ function ItemHistoryPage({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="relative md:col-span-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Search name, location…" value={searchTerm}
+            <input type="text" placeholder="Search item name, location…" value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className={inputCls + " pl-9"} style={{ fontFamily: "DM Sans, sans-serif" }} />
           </div>
