@@ -3445,7 +3445,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                             const val = e.target.value.toLowerCase();
                             setEditRollNo(val);
                             setFieldErrors(prev => {
-                              const updatedErrors = { ...prev, roll: validateReturnRollNo(val) || "" };
+                              const updatedErrors: Record<string, string> = { ...prev, roll: validateReturnRollNo(val) || "" };
                               if (editEmail) {
                                 updatedErrors.email = validateReturnEmail(editEmail, val) || "";
                               }
@@ -3456,7 +3456,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                             const val = e.target.value.trim().toLowerCase();
                             setEditRollNo(val);
                             setFieldErrors(prev => {
-                              const updatedErrors = { ...prev, roll: validateReturnRollNo(val) || "" };
+                              const updatedErrors: Record<string, string> = { ...prev, roll: validateReturnRollNo(val) || "" };
                               if (editEmail) {
                                 updatedErrors.email = validateReturnEmail(editEmail, val) || "";
                               }
