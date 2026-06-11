@@ -7,13 +7,13 @@ import {
   CheckCircle, Calendar, MapPin, Filter, Tag,
   AlertCircle, AlertTriangle,
   Upload, ArrowLeft, Info, Building2, ArrowUp, ShieldCheck, Lock,
-  Recycle, Package, Heart
+  Recycle, Package, Heart, Loader2
 } from "lucide-react";
 import { CardNameTooltip } from "./components/CardNameTooltip";
 import ClaimCountdownBar from "./components/ClaimCountdownBar";
 import { ScrollToTopButton } from "./components/ScrollToTopButton";
 import campusLogo from "../imports/afa90946107debb396ffdb7284683a17-1.jpg";
-import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem, updateLostItemStatus, updateFoundItemStatus, deleteLostItem, deleteFoundItem } from "./api";
+import { getAdminFoundItems, getAdminLostItems, getBrowseItems, getHistory, reportItem, updateLostItemStatus, updateFoundItemStatus, deleteLostItem, deleteFoundItem, markItemDisposed } from "./api";
 import {
   categories,
   collectFromOptions,
@@ -255,8 +255,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "rollNo":
         if (isStudent) {
           if (!trimmed) return "Roll Number is required.";
-          if (isLost && trimmed.length < 3) return "Roll Number must be at least 8 characters.";
-          if (!isLost && trimmed.length < 8) return "Roll Number must be at least 8 characters.";
+          if (isLost && trimmed.length < 7) return "Roll Number must be at least 7 characters.";
+          if (!isLost && trimmed.length < 7) return "Roll Number must be at least 7 characters.";
           if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
           if (!/^[a-zA-Z0-9-]+$/.test(trimmed)) return "Roll Number can only contain alphanumeric characters and hyphens.";
         }
@@ -274,7 +274,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
           if (!trimmed) return "Email address is required.";
           const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
           if (!emailRegex.test(trimmed)) {
-            return "Please enter a valid Kristu Jayanti institutional email address.";
+            return "Please enter a valid Kristu Jayanti email address.";
           }
           if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
             return "Only @kristujayanti.com email addresses are allowed.";
@@ -1694,7 +1694,13 @@ function ItemHistoryPage({
           </select>
           <div className="relative">
             <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            <input type="date" value={dateTo}
+              max={getTodayDateString()}
+              onChange={e => {
+                const val = e.target.value;
+                if (val && val > getTodayDateString()) return;
+                setDateTo(val);
+              }}
               className={inputCls + " pl-9"} style={{ fontFamily: "DM Sans, sans-serif" }} />
           </div>
         </div>
@@ -1832,6 +1838,10 @@ function ExpiredItemsPage({
   const [modalVisible, setModalVisible] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [isDisposing, setIsDisposing] = useState(false);
+  const [notesError, setNotesError] = useState("");
+  const [disposingItemId, setDisposingItemId] = useState<string | null>(null);
+
   const [disposalLocation, setDisposalLocation] = useState("");
   const [donatedTo, setDonatedTo] = useState("None");
   const [notes, setNotes] = useState("");
@@ -1841,11 +1851,9 @@ function ExpiredItemsPage({
     .filter(i => i.status === "Not Returned" && getDaysInfo(i.dateFound).isExpired)
     .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.dateFound, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.dateFound).daysElapsed }));
 
+  const searchQuery = searchTerm.trim().toLowerCase();
   const allExpired = expiredFoundRecords
-    .filter(i => {
-      const q = searchTerm.toLowerCase();
-      return !q || i.name.toLowerCase().includes(q) || i.location.toLowerCase().includes(q);
-    })
+    .filter(i => searchQuery.length < 4 || i.name.toLowerCase().includes(searchQuery))
     .sort((a, b) => b.daysElapsed - a.daysElapsed);
 
   const openModal = (item: typeof allExpired[0]) => {
@@ -1854,7 +1862,9 @@ function ExpiredItemsPage({
     setDisposalLocation("");
     setDonatedTo("None");
     setNotes("");
+    setNotesError("");
     setShowConfirm(false);
+    setDisposingItemId(null);
     requestAnimationFrame(() => requestAnimationFrame(() => setModalVisible(true)));
   };
 
@@ -1863,8 +1873,13 @@ function ExpiredItemsPage({
     closeTimerRef.current = setTimeout(() => setSelectedItem(null), 260);
   };
 
-  const handleSubmitDisposal = () => {
-    if (!selectedItem || !disposalLocation.trim()) return;
+  const handleSubmitDisposal = async () => {
+    if (!selectedItem || !disposalLocation.trim() || isDisposing) return;
+    const trimmedNotes = notes.trim();
+    if (trimmedNotes && trimmedNotes.length < 8) {
+      setNotesError("Notes must be at least 8 characters if provided.");
+      return;
+    }
     const now = formatNow();
     const record: DisposedRecord = {
       id: selectedItem.id,
@@ -1878,19 +1893,36 @@ function ExpiredItemsPage({
       disposalLocation: disposalLocation.trim(),
       donatedTo: donatedTo === "None" ? "" : donatedTo,
       disposedDate: now,
-      notes: notes.trim(),
+      notes: trimmedNotes,
     };
-    if (selectedItem.type === "Found") {
-      setFoundAdminRecords(prev => prev.filter(i => i.id !== selectedItem.id));
-    } else {
-      setLostAdminRecords(prev => prev.filter(i => i.id !== selectedItem.id));
+    setIsDisposing(true);
+    try {
+      await markItemDisposed(selectedItem.id, selectedItem.type, {
+        disposalLocation: disposalLocation.trim(),
+        donatedTo: donatedTo === "None" ? "" : donatedTo,
+        notes: trimmedNotes,
+      });
+      if (selectedItem.type === "Found") {
+        setFoundAdminRecords(prev => prev.filter(i => i.id !== selectedItem.id));
+      } else {
+        setLostAdminRecords(prev => prev.filter(i => i.id !== selectedItem.id));
+      }
+      onDispose(record);
+      closeModal();
+      toast.success("Item marked as disposed", {
+        description: `${selectedItem.name} has been moved to History.`,
+        duration: 3500,
+      });
+    } catch (error) {
+      console.error("Disposal failed:", error);
+      toast.error("Failed to mark item as disposed", {
+        description: error instanceof Error ? error.message : "API error. Please try again.",
+        duration: 4500,
+      });
+    } finally {
+      setIsDisposing(false);
+      setDisposingItemId(null);
     }
-    onDispose(record);
-    closeModal();
-    toast.success("Item marked as disposed", {
-      description: `${selectedItem.name} has been moved to History.`,
-      duration: 3500,
-    });
   };
 
   const fLabel = "block text-xs font-semibold text-gray-600 mb-1.5";
@@ -1927,7 +1959,7 @@ function ExpiredItemsPage({
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Search by name or location…" value={searchTerm}
+            <input type="text" placeholder="Search by item name " value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
               style={{ fontFamily: "DM Sans, sans-serif" }} />
@@ -1964,11 +1996,14 @@ function ExpiredItemsPage({
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reportedDate}</td>
                   <td className="px-4 py-3">
                     <button
-                      onClick={() => openModal(item)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-semibold transition-all"
+                      onClick={() => { setDisposingItemId(item.id); openModal(item); }}
+                      disabled={disposingItemId === item.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                       style={{ fontFamily: "DM Sans, sans-serif" }}
                     >
-                      <Recycle size={11} /> Mark Disposed
+                      {disposingItemId === item.id
+                        ? <><Loader2 size={11} className="animate-spin" /> Loading…</>
+                        : <><Recycle size={11} /> Mark Disposed</>}
                     </button>
                   </td>
                 </tr>
@@ -2059,9 +2094,12 @@ function ExpiredItemsPage({
               {/* Notes */}
               <div>
                 <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Notes <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Optional)</span></label>
-                <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)}
+                <textarea rows={3} value={notes} onChange={e => { setNotes(e.target.value); if (notesError) setNotesError(""); }}
                   placeholder="Additional disposal notes…" className={fInput}
                   style={{ fontFamily: "DM Sans, sans-serif", resize: "none" }} />
+                {notesError && (
+                  <p className="text-red-500 text-xs mt-1" style={{ fontFamily: "DM Sans, sans-serif" }}>{notesError}</p>
+                )}
               </div>
             </div>
 
@@ -2072,7 +2110,16 @@ function ExpiredItemsPage({
                   style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: "pointer" }}>
                   Cancel
                 </button>
-                <button onClick={() => setShowConfirm(true)} disabled={!disposalLocation.trim()}
+                <button
+                  onClick={() => {
+                    const trimmedNotes = notes.trim();
+                    if (trimmedNotes && trimmedNotes.length < 8) {
+                      setNotesError("Notes must be at least 8 characters if provided.");
+                      return;
+                    }
+                    setShowConfirm(true);
+                  }}
+                  disabled={!disposalLocation.trim()}
                   style={{
                     flex: 1, padding: "10px 0", borderRadius: 9, border: "none",
                     background: disposalLocation.trim() ? "#1f2937" : "#e5e7eb",
@@ -2094,15 +2141,17 @@ function ExpiredItemsPage({
                     style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: "pointer" }}>
                     Go Back
                   </button>
-                  <button onClick={handleSubmitDisposal}
+                  <button onClick={handleSubmitDisposal} disabled={isDisposing}
                     style={{
                       flex: 1, padding: "10px 0", borderRadius: 9, border: "none",
-                      background: "#dc2626", color: "white",
+                      background: isDisposing ? "#9ca3af" : "#dc2626", color: "white",
                       fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
-                      cursor: "pointer",
+                      cursor: isDisposing ? "not-allowed" : "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                     }}>
-                    <Recycle size={14} /> Yes, Dispose Now
+                    {isDisposing
+                      ? <><Loader2 size={14} className="animate-spin" /> Disposing…</>
+                      : <><Recycle size={14} /> Yes, Dispose Now</>}
                   </button>
                 </div>
               </div>

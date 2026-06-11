@@ -451,4 +451,15 @@ export async function deleteFoundItem(id: string): Promise<void> {
   await fetchJson(`/api/items/found/${id}`, {}, { method: "DELETE" });
 }
 
+// ─── Disposal Endpoint ──────────────────────────────────────────────────────
 
+export async function markItemDisposed(
+  id: string,
+  itemType: "Found" | "Lost",
+  payload: { disposalLocation: string; donatedTo?: string; notes?: string }
+): Promise<void> {
+  await fetchJson(`/api/history/disposed/${id}/${itemType}`, {}, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
