@@ -1691,9 +1691,9 @@ function ItemHistoryPage({
   });
   const filteredReturned = isSearchActive
     ? dateAndTypeFilteredReturned.filter(r => {
-        const qStr = debouncedSearchTerm.trim().toLowerCase();
-        return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
-      })
+      const qStr = debouncedSearchTerm.trim().toLowerCase();
+      return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
+    })
     : dateAndTypeFilteredReturned;
 
   // Lost & Not Found: lost items that expired (60+ days) and were never returned
@@ -1709,17 +1709,17 @@ function ItemHistoryPage({
   const dateFilteredLostNotFound = lostNotFoundRecords.filter(r => matchesExactDate(r.reportedDate, debouncedDateTo));
   const filteredLostNotFound = isSearchActive
     ? dateFilteredLostNotFound.filter(r => {
-        const qStr = debouncedSearchTerm.trim().toLowerCase();
-        return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
-      })
+      const qStr = debouncedSearchTerm.trim().toLowerCase();
+      return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
+    })
     : dateFilteredLostNotFound;
 
   const dateFilteredDisposed = localDisposedHistory.filter(r => matchesExactDate(r.disposedDate, debouncedDateTo));
   const filteredDisposed = isSearchActive
     ? dateFilteredDisposed.filter(r => {
-        const qStr = debouncedSearchTerm.trim().toLowerCase();
-        return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
-      })
+      const qStr = debouncedSearchTerm.trim().toLowerCase();
+      return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
+    })
     : dateFilteredDisposed;
 
   const inputCls = "w-full bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/15 transition-all py-2.5";
@@ -2703,7 +2703,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Name", "Reported Date & Time", "Location", "Reporter", "Days Left", "Actions"].map(h => (
+                {["Name", "Reported Date & Time", "Location", "Reporter", "Days Left", "Return"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-gray-600 font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
                 ))}
               </tr>
@@ -2965,10 +2965,10 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
       if (timeErr) errors.time = timeErr;
       const remarksErr = validateReturnRemarks(editRemarks);
       if (remarksErr) errors.remarks = remarksErr;
-      
+
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
-        
+
         const focusOrder = [
           { key: "name", id: "edit-student-name" },
           { key: "roll", id: "edit-roll-no" },
@@ -2978,7 +2978,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
           { key: "time", id: "edit-returned-time" },
           { key: "remarks", id: "edit-remarks" }
         ];
-        
+
         for (const item of focusOrder) {
           if (errors[item.key]) {
             const el = document.getElementById(item.id);
@@ -3006,7 +3006,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
 
   const confirmReturn = async () => {
     if (!pendingReturnItem) return;
-    
+
     const hasErrors =
       validateReturnStudentName(editStudentName) ||
       validateReturnRollNo(editRollNo) ||
@@ -3120,7 +3120,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Name", "Found Date & Time", "Location", "Days Left", "Actions"].map(h => (
+                {["Name", "Found Date & Time", "Location", "Days Left", "Return"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-gray-600 font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
                 ))}
               </tr>
