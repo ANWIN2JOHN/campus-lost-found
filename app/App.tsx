@@ -72,30 +72,40 @@ function validatePhone(phone: string, fieldLabel: string): string | null {
 function validateReturnStudentName(name: string): string | null {
   const trimmed = name.trim();
   if (!trimmed) return "Student Name is required.";
-  if (trimmed.length < 2) return "Student Name must be at least 2 characters.";
+  if (trimmed.length < 8) return "Student Name must contain at least 8 characters.";
   if (trimmed.length > 100) return "Student Name must not exceed 100 characters.";
-  if (/^[0-9]+$/.test(trimmed)) return "Student Name cannot be numbers only.";
-  if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Student Name can only contain letters, spaces, hyphens, and apostrophes.";
+  if (!/^[a-zA-Z\s]+$/.test(trimmed)) return "Student Name can only contain letters and spaces.";
   return null;
 }
 
 function validateReturnRollNo(roll: string): string | null {
-  const trimmed = roll.trim().toUpperCase();
-  if (!trimmed) return "Roll Number is required.";
-  if (trimmed.length < 3) return "Roll Number must be at least 3 characters.";
-  if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
-  if (!/^[A-Z0-9][A-Z0-9\-\/]*$/.test(trimmed)) return "Roll Number can only contain letters, numbers, hyphens, and slashes.";
+  const trimmed = roll.trim();
+  if (!trimmed) return "Roll number is required.";
+  if (trimmed.length < 5 || trimmed.length > 30 || !/^[A-Za-z0-9\-]+$/.test(trimmed)) {
+    return "Enter a valid Roll Number.";
+  }
   return null;
 }
 
 function validateReturnPhone(phone: string): string | null {
   const trimmed = phone.trim();
-  if (!trimmed) return "Phone Number is required.";
-  if (/[a-zA-Z]/.test(trimmed)) return "Phone Number cannot contain letters.";
-  const withoutPrefix = trimmed.replace(/^\+91[\s-]?/, "").replace(/[\s-]/g, "");
-  if (/[^0-9]/.test(withoutPrefix)) return "Phone Number can only contain digits (or +91 prefix).";
-  if (withoutPrefix.length !== 10) return "Phone Number must be exactly 10 digits.";
-  if (/^0+$/.test(withoutPrefix)) return "Phone Number cannot be all zeros.";
+  if (!trimmed) return "Phone number is required.";
+  if (!/^\d+$/.test(trimmed) || trimmed.length !== 10) {
+    return "Phone Number must contain exactly 10 digits.";
+  }
+  return null;
+}
+
+function validateReturnEmail(email: string): string | null {
+  const trimmed = email.trim();
+  if (!trimmed) return "Please enter a valid Kristu Jayanti email address.";
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(trimmed)) {
+    return "Please enter a valid Kristu Jayanti email address.";
+  }
+  if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
+    return "Only @kristujayanti.com email addresses are allowed.";
+  }
   return null;
 }
 
@@ -2843,6 +2853,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
   const [editItem, setEditItem] = useState<AdminFoundItem | null>(null);
   const [pendingReturnItem, setPendingReturnItem] = useState<AdminFoundItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [isModalLoading, setIsModalLoading] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [editStatus, setEditStatus] = useState("");
@@ -2920,6 +2931,10 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
     setEditRemarks("");
     setFieldErrors({});
     setIsSaveLoading(false);
+    setIsModalLoading(true);
+    setTimeout(() => {
+      setIsModalLoading(false);
+    }, 450);
     requestAnimationFrame(() => requestAnimationFrame(() => setModalVisible(true)));
   };
 
@@ -2932,7 +2947,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
     !validateReturnStudentName(editStudentName) &&
     !validateReturnRollNo(editRollNo) &&
     !validateReturnPhone(editPhone) &&
-    !validateEmail(editEmail) &&
+    !validateReturnEmail(editEmail) &&
     !validateReturnedDate(editReturnedDate, editItem?.dateFound ?? "") &&
     !validateReturnedTime(editReturnedTime, editReturnedDate) &&
     !validateReturnRemarks(editRemarks);
@@ -2947,7 +2962,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
       if (rollErr) errors.roll = rollErr;
       const phoneErr = validateReturnPhone(editPhone);
       if (phoneErr) errors.phone = phoneErr;
-      const emailErr = validateEmail(editEmail.trim());
+      const emailErr = validateReturnEmail(editEmail);
       if (emailErr) errors.email = emailErr;
       const dateErr = validateReturnedDate(editReturnedDate, editItem.dateFound);
       if (dateErr) errors.date = dateErr;
@@ -2955,8 +2970,30 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
       if (timeErr) errors.time = timeErr;
       const remarksErr = validateReturnRemarks(editRemarks);
       if (remarksErr) errors.remarks = remarksErr;
+      
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
+        
+        const focusOrder = [
+          { key: "name", id: "edit-student-name" },
+          { key: "roll", id: "edit-roll-no" },
+          { key: "phone", id: "edit-phone" },
+          { key: "email", id: "edit-email" },
+          { key: "date", id: "edit-returned-date" },
+          { key: "time", id: "edit-returned-time" },
+          { key: "remarks", id: "edit-remarks" }
+        ];
+        
+        for (const item of focusOrder) {
+          if (errors[item.key]) {
+            const el = document.getElementById(item.id);
+            if (el) {
+              el.focus();
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+            break;
+          }
+        }
         return;
       }
       setFieldErrors({});
@@ -2974,6 +3011,21 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
 
   const confirmReturn = async () => {
     if (!pendingReturnItem) return;
+    
+    const hasErrors =
+      validateReturnStudentName(editStudentName) ||
+      validateReturnRollNo(editRollNo) ||
+      validateReturnPhone(editPhone) ||
+      validateReturnEmail(editEmail) ||
+      validateReturnedDate(editReturnedDate, pendingReturnItem.dateFound) ||
+      validateReturnedTime(editReturnedTime, editReturnedDate) ||
+      validateReturnRemarks(editRemarks);
+
+    if (hasErrors) {
+      toast.error("Cannot proceed: some fields are invalid.");
+      return;
+    }
+
     setIsActionLoading(true);
     try {
       await updateFoundItemStatus(pendingReturnItem.id, editStudentName, editRollNo, editPhone, editEmail);
@@ -3200,105 +3252,151 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                 </div>
               </div>
 
-              {/* Returned-specific fields */}
-              {editStatus === "Returned" && (
-                <>
-                  {/* Student Name + Roll Number */}
+              {isModalLoading ? (
+                <div className="space-y-4 animate-pulse">
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     <div>
-                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Student Name <span style={{ color: "#ef4444" }}>*</span></label>
-                      <input
-                        type="text"
-                        value={editStudentName}
-                        onChange={e => { setEditStudentName(e.target.value); setFieldErrors(prev => ({ ...prev, name: "" })); }}
-                        onBlur={e => setFieldErrors(prev => ({ ...prev, name: validateReturnStudentName(e.target.value) || "" }))}
-                        placeholder="Full name"
-                        className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.name ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
-                      />
-                      {fieldErrors.name && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.name}</p>}
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
                     </div>
                     <div>
-                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Roll Number <span style={{ color: "#ef4444" }}>*</span></label>
-                      <input
-                        type="text"
-                        value={editRollNo}
-                        onChange={e => { setEditRollNo(e.target.value.toUpperCase()); setFieldErrors(prev => ({ ...prev, roll: "" })); }}
-                        onBlur={e => setFieldErrors(prev => ({ ...prev, roll: validateReturnRollNo(e.target.value) || "" }))}
-                        placeholder="e.g. 25-BCAIOT-23"
-                        className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.roll ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
-                      />
-                      {fieldErrors.roll && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.roll}</p>}
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
                     </div>
                   </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                editStatus === "Returned" && (
+                  <>
+                    {/* Student Name + Roll Number */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div>
+                        <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Student Name <span style={{ color: "#ef4444" }}>*</span></label>
+                        <input
+                          id="edit-student-name"
+                          type="text"
+                          disabled={isSaveLoading || isActionLoading}
+                          value={editStudentName}
+                          onChange={e => { setEditStudentName(e.target.value); setFieldErrors(prev => ({ ...prev, name: "" })); }}
+                          onBlur={e => setFieldErrors(prev => ({ ...prev, name: validateReturnStudentName(e.target.value) || "" }))}
+                          placeholder="Full name"
+                          className={fInput}
+                          style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.name ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                        />
+                        {fieldErrors.name && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.name}</p>}
+                      </div>
+                      <div>
+                        <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Roll Number <span style={{ color: "#ef4444" }}>*</span></label>
+                        <input
+                          id="edit-roll-no"
+                          type="text"
+                          disabled={isSaveLoading || isActionLoading}
+                          value={editRollNo}
+                          onChange={e => { setEditRollNo(e.target.value.toUpperCase()); setFieldErrors(prev => ({ ...prev, roll: "" })); }}
+                          onBlur={e => setFieldErrors(prev => ({ ...prev, roll: validateReturnRollNo(e.target.value) || "" }))}
+                          placeholder="e.g. 25-BCAIOT-23"
+                          className={fInput}
+                          style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.roll ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                        />
+                        {fieldErrors.roll && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.roll}</p>}
+                      </div>
+                    </div>
 
-                  {/* Phone + Email */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Phone Number <span style={{ color: "#ef4444" }}>*</span></label>
-                      <input
-                        type="tel"
-                        value={editPhone}
-                        onChange={e => { setEditPhone(e.target.value); setFieldErrors(prev => ({ ...prev, phone: "" })); }}
-                        onBlur={e => setFieldErrors(prev => ({ ...prev, phone: validateReturnPhone(e.target.value) || "" }))}
-                        placeholder="+91 9876543210"
-                        className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.phone ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
-                      />
-                      {fieldErrors.phone && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.phone}</p>}
+                    {/* Phone + Email */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div>
+                        <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Phone Number <span style={{ color: "#ef4444" }}>*</span></label>
+                        <input
+                          id="edit-phone"
+                          type="tel"
+                          disabled={isSaveLoading || isActionLoading}
+                          value={editPhone}
+                          onChange={e => { setEditPhone(e.target.value); setFieldErrors(prev => ({ ...prev, phone: "" })); }}
+                          onBlur={e => setFieldErrors(prev => ({ ...prev, phone: validateReturnPhone(e.target.value) || "" }))}
+                          placeholder="+91 9876543210"
+                          className={fInput}
+                          style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.phone ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                        />
+                        {fieldErrors.phone && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.phone}</p>}
+                      </div>
+                      <div>
+                        <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Email Address <span style={{ color: "#ef4444" }}>*</span></label>
+                        <input
+                          id="edit-email"
+                          type="email"
+                          disabled={isSaveLoading || isActionLoading}
+                          value={editEmail}
+                          onChange={e => { setEditEmail(e.target.value); setFieldErrors(prev => ({ ...prev, email: "" })); }}
+                          onBlur={e => setFieldErrors(prev => ({ ...prev, email: validateReturnEmail(e.target.value) || "" }))}
+                          placeholder="mail@kristujayanti.com"
+                          className={fInput}
+                          style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.email ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                        />
+                        {fieldErrors.email && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.email}</p>}
+                      </div>
                     </div>
-                    <div>
-                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Email Address <span style={{ color: "#ef4444" }}>*</span></label>
-                      <input
-                        type="email"
-                        value={editEmail}
-                        onChange={e => { setEditEmail(e.target.value); setFieldErrors(prev => ({ ...prev, email: "" })); }}
-                        onBlur={e => setFieldErrors(prev => ({ ...prev, email: validateEmail(e.target.value) || "" }))}
-                        placeholder="mail@kristujayanti.com"
-                        className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", ...(fieldErrors.email ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
-                      />
-                      {fieldErrors.email && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.email}</p>}
-                    </div>
-                  </div>
 
-                  {/* Returned Date + Time */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Date <span style={{ color: "#ef4444" }}>*</span></label>
-                      <input
-                        type="date"
-                        value={editReturnedDate}
-                        max={getTodayDateString()}
-                        onChange={e => { setEditReturnedDate(e.target.value); setFieldErrors(prev => ({ ...prev, date: "", time: "" })); }}
-                        onBlur={e => {
-                          const d = e.target.value;
-                          setFieldErrors(prev => ({
-                            ...prev,
-                            date: validateReturnedDate(d, editItem?.dateFound ?? "") || "",
-                            time: editReturnedTime ? (validateReturnedTime(editReturnedTime, d) || "") : prev.time,
-                          }));
-                        }}
-                        className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.date ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
-                      />
-                      {fieldErrors.date && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.date}</p>}
+                    {/* Returned Date + Time */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      <div>
+                        <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Date <span style={{ color: "#ef4444" }}>*</span></label>
+                        <input
+                          id="edit-returned-date"
+                          type="date"
+                          disabled={isSaveLoading || isActionLoading}
+                          value={editReturnedDate}
+                          max={getTodayDateString()}
+                          onChange={e => { setEditReturnedDate(e.target.value); setFieldErrors(prev => ({ ...prev, date: "", time: "" })); }}
+                          onBlur={e => {
+                            const d = e.target.value;
+                            setFieldErrors(prev => ({
+                              ...prev,
+                              date: validateReturnedDate(d, editItem?.dateFound ?? "") || "",
+                              time: editReturnedTime ? (validateReturnedTime(editReturnedTime, d) || "") : prev.time,
+                            }));
+                          }}
+                          className={fInput}
+                          style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.date ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                        />
+                        {fieldErrors.date && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.date}</p>}
+                      </div>
+                      <div>
+                        <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Time <span style={{ color: "#ef4444" }}>*</span></label>
+                        <input
+                          id="edit-returned-time"
+                          type="time"
+                          disabled={isSaveLoading || isActionLoading}
+                          value={editReturnedTime}
+                          onChange={e => { setEditReturnedTime(e.target.value); setFieldErrors(prev => ({ ...prev, time: "" })); }}
+                          onBlur={e => setFieldErrors(prev => ({ ...prev, time: validateReturnedTime(e.target.value, editReturnedDate) || "" }))}
+                          className={fInput}
+                          style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.time ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                        />
+                        {fieldErrors.time && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.time}</p>}
+                      </div>
                     </div>
-                    <div>
-                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Time <span style={{ color: "#ef4444" }}>*</span></label>
-                      <input
-                        type="time"
-                        value={editReturnedTime}
-                        onChange={e => { setEditReturnedTime(e.target.value); setFieldErrors(prev => ({ ...prev, time: "" })); }}
-                        onBlur={e => setFieldErrors(prev => ({ ...prev, time: validateReturnedTime(e.target.value, editReturnedDate) || "" }))}
-                        className={fInput}
-                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(fieldErrors.time ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
-                      />
-                      {fieldErrors.time && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{fieldErrors.time}</p>}
-                    </div>
-                  </div>
-                </>
+                  </>
+                )
               )}
 
               {/* Remarks */}
@@ -3308,7 +3406,9 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                   <span style={{ color: editRemarks.trim().length > 500 ? "#ef4444" : "#9ca3af", fontSize: 11, fontWeight: 400 }}>{editRemarks.trim().length}/500</span>
                 </label>
                 <textarea
+                  id="edit-remarks"
                   rows={3}
+                  disabled={isModalLoading || isSaveLoading || isActionLoading}
                   value={editRemarks}
                   onChange={e => { setEditRemarks(e.target.value); setFieldErrors(prev => ({ ...prev, remarks: "" })); }}
                   placeholder="Add any additional notes or remarks…"
@@ -3342,27 +3442,28 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
             <div style={{ padding: "0 24px 20px", display: "flex", gap: 10 }}>
               <button
                 onClick={closeModal}
-                style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: "pointer", transition: "all 0.15s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "white"; }}
+                disabled={isSaveLoading || isActionLoading}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: (isSaveLoading || isActionLoading) ? "not-allowed" : "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { if (!isSaveLoading && !isActionLoading) (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
+                onMouseLeave={e => { if (!isSaveLoading && !isActionLoading) (e.currentTarget as HTMLButtonElement).style.background = "white"; }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
-                disabled={!isReturnValid || isSaveLoading}
+                disabled={isSaveLoading || isModalLoading || isActionLoading || Object.values(fieldErrors).some(err => !!err)}
                 style={{
                   flex: 1, padding: "10px 0", borderRadius: 9, border: "none",
-                  background: isReturnValid && !isSaveLoading ? "#0891b2" : "#e5e7eb",
-                  color: isReturnValid && !isSaveLoading ? "white" : "#9ca3af",
+                  background: (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) ? "#0891b2" : "#e5e7eb",
+                  color: (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) ? "white" : "#9ca3af",
                   fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
-                  cursor: isReturnValid && !isSaveLoading ? "pointer" : "not-allowed",
+                  cursor: (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) ? "pointer" : "not-allowed",
                   transition: "all 0.15s",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  opacity: isSaveLoading ? 0.85 : 1,
+                  opacity: (isSaveLoading || isActionLoading) ? 0.85 : 1,
                 }}
-                onMouseEnter={e => { if (isReturnValid && !isSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
-                onMouseLeave={e => { if (isReturnValid && !isSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
+                onMouseEnter={e => { if (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
+                onMouseLeave={e => { if (!isSaveLoading && !isModalLoading && !isActionLoading && !Object.values(fieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
               >
                 {isSaveLoading ? (
                   <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>

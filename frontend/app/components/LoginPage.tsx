@@ -12,57 +12,79 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
-  const [validationMsg, setValidationMsg] = useState("");
+  const [emailError, setEmailError]       = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [showPassword, setShowPassword]   = useState(false);
   const [isLoading, setIsLoading]         = useState(false);
 
-  const validateEmail = (val: string) => {
-    if (!val) return "";
-    if (!val.includes("@")) return `Please include an '@' in the email address. '${val}' is missing an '@'.`;
-    const parts = val.split("@");
-    if (parts[1] === "" || !parts[1]) return `Please enter a part following '@'. '${val}' is incomplete.`;
+  const validateEmailField = (val: string) => {
+    const trimmed = val.trim();
+    if (!trimmed) return "Email Address is required.";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) return "Enter a valid email format.";
     return "";
   };
 
-  const handleEmailChange = (val: string) => {
-    setEmail(val);
-    setError("");
-    setValidationMsg(validateEmail(val));
+  const validatePasswordField = (val: string) => {
+    const trimmed = val.trim();
+    if (!trimmed) return "Password is required.";
+    if (trimmed.length < 6) return "Password must be at least 6 characters.";
+    return "";
   };
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
 
-  const emailErr = validateEmail(email);
+    const emailErr = validateEmailField(email);
+    const passwordErr = validatePasswordField(password);
 
-  if (emailErr) {
-    setValidationMsg(emailErr);
-    return;
-  }
+    setEmailError(emailErr);
+    setPasswordError(passwordErr);
 
-  setValidationMsg("");
-  setError("");
-  setIsLoading(true);
+    if (emailErr || passwordErr) {
+      const firstInvalidId = emailErr ? "email-input" : "password-input";
+      const el = document.getElementById(firstInvalidId);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
 
-  try {
-    await loginAdmin(email, password);
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
 
-    onLogin("admin");
-  } catch (error) {
-    setError(
-      error instanceof Error
-        ? error.message
-        : "Invalid admin credentials"
-    );
-  } finally {
-    setIsLoading(false);
-  }
-};
+    setError("");
+    setIsLoading(true);
 
-  const inputCls =
-    "w-full pl-11 pr-4 py-3 text-sm bg-white border border-gray-200 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all";
-  const passwordInputCls =
-    "w-full pl-11 pr-11 py-3 text-sm bg-white border border-gray-200 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all";
+    try {
+      await loginAdmin(trimmedEmail, trimmedPassword);
+      onLogin("admin");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Invalid admin credentials"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getEmailInputCls = () => {
+    if (emailError) {
+      return "w-full pl-11 pr-4 py-3 text-sm bg-white border border-red-500 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all shadow-[0_0_0_2px_rgba(239,68,68,0.2)]";
+    }
+    return "w-full pl-11 pr-4 py-3 text-sm bg-white border border-gray-200 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all";
+  };
+
+  const getPasswordInputCls = () => {
+    if (passwordError) {
+      return "w-full pl-11 pr-11 py-3 text-sm bg-white border border-red-500 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all shadow-[0_0_0_2px_rgba(239,68,68,0.2)]";
+    }
+    return "w-full pl-11 pr-11 py-3 text-sm bg-white border border-gray-200 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all";
+  };
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: "#f0f4f8" }}>
@@ -126,15 +148,26 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <div className="relative">
                   <Mail size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
+                    id="email-input"
                     type="text"
-                    required
                     value={email}
-                    onChange={e => handleEmailChange(e.target.value)}
+                    onChange={e => {
+                      setEmail(e.target.value);
+                      setEmailError("");
+                      setError("");
+                    }}
+                    onBlur={() => setEmailError(validateEmailField(email))}
                     placeholder="Enter your email"
-                    className={inputCls}
+                    className={getEmailInputCls()}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                 </div>
+                {emailError && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1 pl-2 font-medium" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                    <AlertCircle size={12} className="shrink-0" />
+                    {emailError}
+                  </p>
+                )}
               </div>
 
               {/* Password */}
@@ -148,12 +181,17 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <div className="relative">
                   <Lock size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
+                    id="password-input"
                     type={showPassword ? "text" : "password"}
-                    required
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => {
+                      setPassword(e.target.value);
+                      setPasswordError("");
+                      setError("");
+                    }}
+                    onBlur={() => setPasswordError(validatePasswordField(password))}
                     placeholder="Enter your password"
-                    className={passwordInputCls}
+                    className={getPasswordInputCls()}
                     style={{ fontFamily: "DM Sans, sans-serif" }}
                   />
                   <button
@@ -170,6 +208,12 @@ const handleSubmit = async (e: React.FormEvent) => {
                     }
                   </button>
                 </div>
+                {passwordError && (
+                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1 pl-2 font-medium" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                    <AlertCircle size={12} className="shrink-0" />
+                    {passwordError}
+                  </p>
+                )}
               </div>
 
               {/* Sign In button */}
@@ -191,8 +235,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               style={
                 error
                   ? { background: "#fff1f2", border: "1px solid #fecdd3" }
-                  : validationMsg
-                  ? { background: "#fffbeb", border: "1px solid #fde68a" }
                   : { background: "#f0f9ff", border: "1px solid #e0f2fe" }
               }
             >
@@ -200,11 +242,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <div className="flex items-start gap-2">
                   <AlertCircle size={15} className="text-red-500 mt-0.5 shrink-0" />
                   <p className="text-sm text-red-700" style={{ fontFamily: "DM Sans, sans-serif" }}>{error}</p>
-                </div>
-              ) : validationMsg ? (
-                <div className="flex items-start gap-2">
-                  <AlertCircle size={15} className="text-amber-500 mt-0.5 shrink-0" />
-                  <p className="text-sm text-amber-800" style={{ fontFamily: "DM Sans, sans-serif" }}>{validationMsg}</p>
                 </div>
               ) : (
                 <p className="text-sm text-gray-700 leading-relaxed" style={{ fontFamily: "DM Sans, sans-serif" }}>
