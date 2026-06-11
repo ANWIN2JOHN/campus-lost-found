@@ -3141,7 +3141,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => openModal(item)} className="text-cyan-600 hover:text-cyan-700 p-1.5 rounded-lg hover:bg-cyan-50 border border-transparent hover:border-cyan-200 transition-all duration-150" title="Return">
+                      <button onClick={() => openModal(item)} className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-cyan-50/50 border border-cyan-200 text-cyan-800 hover:bg-cyan-100/50 hover:border-cyan-300 hover:text-cyan-900 transition-all duration-150" title="Return">
                         <Check size={13} />
                       </button>
                     </div>
