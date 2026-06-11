@@ -229,7 +229,11 @@ export async function getBrowseItems(
   return fetchBrowseItemsFromBackend(type, query);
 }
 
-export async function getAdminLostItems(): Promise<AdminLostItem[]> {
+export async function getAdminLostItems(status?: "Returned" | "Not Returned"): Promise<AdminLostItem[]> {
+  if (status) {
+    const payload = await fetchJson("/api/items/lost", { limit: "1000", status });
+    return readItems(payload).map(mapAdminLostItem);
+  }
   const [notReturnedPayload, returnedPayload] = await Promise.all([
     fetchJson("/api/items/lost", { limit: "1000", status: "Not Returned" }),
     fetchJson("/api/items/lost", { limit: "1000", status: "Returned" }),
@@ -237,7 +241,11 @@ export async function getAdminLostItems(): Promise<AdminLostItem[]> {
   return [...readItems(notReturnedPayload), ...readItems(returnedPayload)].map(mapAdminLostItem);
 }
 
-export async function getAdminFoundItems(): Promise<AdminFoundItem[]> {
+export async function getAdminFoundItems(status?: "Returned" | "Not Returned"): Promise<AdminFoundItem[]> {
+  if (status) {
+    const payload = await fetchJson("/api/items/found", { limit: "1000", status });
+    return readItems(payload).map(mapAdminFoundItem);
+  }
   const [notReturnedPayload, returnedPayload] = await Promise.all([
     fetchJson("/api/items/found", { limit: "1000", status: "Not Returned" }),
     fetchJson("/api/items/found", { limit: "1000", status: "Returned" }),

@@ -1904,6 +1904,9 @@ function ItemHistoryPage({
   const [localDisposedHistory, setLocalDisposedHistory] = useState<DisposedRecord[]>([]);
   const [localReturnedHistory, setLocalReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
+  const [returnedLoaded, setReturnedLoaded] = useState(false);
+  const [lostNotFoundLoaded, setLostNotFoundLoaded] = useState(false);
+  const [disposedLoaded, setDisposedLoaded] = useState(false);
 
   // Debounced filters & Local filtering loading state:
   const [isFiltering, setIsFiltering] = useState(false);
@@ -1914,24 +1917,35 @@ function ItemHistoryPage({
   useEffect(() => {
     let active = true;
     const loadTabDataset = async () => {
+      if (activeTab === "lost-not-found" && lostNotFoundLoaded) return;
+      if (activeTab === "disposed" && disposedLoaded) return;
+      if (activeTab === "returned" && returnedLoaded) return;
+
       setIsApiLoading(true);
       try {
         if (activeTab === "lost-not-found") {
-          const lost = await getAdminLostItems();
-          if (active) setLocalLostRecords(lost);
+          const lost = await getAdminLostItems("Not Returned");
+          if (active) {
+            setLocalLostRecords(lost);
+            setLostNotFoundLoaded(true);
+          }
         } else if (activeTab === "disposed") {
           const history = await getHistory();
-          if (active) setLocalDisposedHistory(history.disposed);
+          if (active) {
+            setLocalDisposedHistory(history.disposed);
+            setDisposedLoaded(true);
+          }
         } else if (activeTab === "returned") {
           const [lost, found, history] = await Promise.all([
-            getAdminLostItems(),
-            getAdminFoundItems(),
+            getAdminLostItems("Returned"),
+            getAdminFoundItems("Returned"),
             getHistory(),
           ]);
           if (active) {
             setLocalLostRecords(lost);
             setLocalFoundRecords(found);
             setLocalReturnedHistory(history.returned);
+            setReturnedLoaded(true);
           }
         }
       } catch (error) {
@@ -1944,7 +1958,7 @@ function ItemHistoryPage({
     return () => {
       active = false;
     };
-  }, [activeTab]);
+  }, [activeTab, returnedLoaded, lostNotFoundLoaded, disposedLoaded]);
 
   useEffect(() => {
     setIsFiltering(true);
@@ -3907,23 +3921,46 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [disposedHistory, setDisposedHistory] = useState<DisposedRecord[]>([]);
   const [returnedHistory, setReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [lostIsStale, setLostIsStale] = useState(true);
+  const [foundIsStale, setFoundIsStale] = useState(true);
 
-  const loadNavData = async (nav: string) => {
+  const loadNavData = async (nav: string, force = false) => {
+    if (!force) {
+      if (nav === "lost-items" && !lostIsStale) return;
+      if (nav === "found-items" && !foundIsStale) return;
+      if (nav === "expired-items" && !lostIsStale && !foundIsStale) return;
+    }
+
     setIsLoading(true);
     try {
       if (nav === "lost-items") {
-        const lost = await getAdminLostItems();
+        const lost = await getAdminLostItems("Not Returned");
         setSharedLostItems(lost);
+        setLostIsStale(false);
       } else if (nav === "found-items") {
-        const found = await getAdminFoundItems();
+        const found = await getAdminFoundItems("Not Returned");
         setSharedFoundItems(found);
+        setFoundIsStale(false);
       } else if (nav === "expired-items") {
-        const [lost, found] = await Promise.all([
-          getAdminLostItems(),
-          getAdminFoundItems(),
-        ]);
-        setSharedLostItems(lost);
-        setSharedFoundItems(found);
+        const promises: Promise<any>[] = [];
+        const shouldFetchLost = force || lostIsStale;
+        const shouldFetchFound = force || foundIsStale;
+
+        if (shouldFetchLost) promises.push(getAdminLostItems("Not Returned"));
+        else promises.push(Promise.resolve(null));
+
+        if (shouldFetchFound) promises.push(getAdminFoundItems("Not Returned"));
+        else promises.push(Promise.resolve(null));
+
+        const [lost, found] = await Promise.all(promises);
+        if (lost !== null) {
+          setSharedLostItems(lost);
+          setLostIsStale(false);
+        }
+        if (found !== null) {
+          setSharedFoundItems(found);
+          setFoundIsStale(false);
+        }
       }
       // Note: History page loads its own active-tab data dynamically inside ItemHistoryPage, so no fetching here.
     } catch (error) {
@@ -3938,33 +3975,26 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   };
 
   const refreshData = async () => {
-    await loadNavData(activeNav);
+    if (activeNav === "lost-items") setLostIsStale(true);
+    if (activeNav === "found-items") setFoundIsStale(true);
+    if (activeNav === "expired-items") {
+      setLostIsStale(true);
+      setFoundIsStale(true);
+    }
+    await loadNavData(activeNav, true);
   };
 
   const handleItemCreated = async (type: "lost" | "found") => {
-    setIsLoading(true);
-    try {
-      if (type === "lost") {
-        const lost = await getAdminLostItems();
-        setSharedLostItems(lost);
-      } else {
-        const found = await getAdminFoundItems();
-        setSharedFoundItems(found);
-      }
-    } catch (error) {
-      console.error(`Failed to refresh ${type} items`, error);
-      toast.error(`Unable to refresh ${type} items`, {
-        description: error instanceof Error ? error.message : "Please check the Render API connection.",
-        duration: 4500,
-      });
-    } finally {
-      setIsLoading(false);
+    if (type === "lost") {
+      setLostIsStale(true);
+    } else {
+      setFoundIsStale(true);
     }
   };
 
   useEffect(() => {
     loadNavData(activeNav);
-  }, [activeNav]);
+  }, [activeNav, lostIsStale, foundIsStale]);
 
   const handleDispose = (record: DisposedRecord) => {
     setDisposedHistory(prev => [record, ...prev]);
