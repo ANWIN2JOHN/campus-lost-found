@@ -1304,7 +1304,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
             {searchError && (
-              <p className="text-xs text-red-500 mt-1.5" style={{ fontFamily: "DM Sans, sans-serif" }}>
+              <p className="absolute left-0 top-full mt-1 text-xs text-red-500 z-10" style={{ fontFamily: "DM Sans, sans-serif" }}>
                 {searchError}
               </p>
             )}
@@ -1321,7 +1321,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
             {locationError && (
-              <p className="text-xs text-red-500 mt-1.5" style={{ fontFamily: "DM Sans, sans-serif" }}>
+              <p className="absolute left-0 top-full mt-1 text-xs text-red-500 z-10" style={{ fontFamily: "DM Sans, sans-serif" }}>
                 {locationError}
               </p>
             )}
