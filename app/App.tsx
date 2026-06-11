@@ -98,10 +98,10 @@ function validateReturnPhone(phone: string): string | null {
 
 function validateReturnEmail(email: string): string | null {
   const trimmed = email.trim();
-  if (!trimmed) return "Please enter a valid Kristu Jayanti email address.";
+  if (!trimmed) return "Please enter a Kristu Jayanti email address.";
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   if (!emailRegex.test(trimmed)) {
-    return "Please enter a valid Kristu Jayanti email address.";
+    return "Please enter a Kristu Jayanti email address.";
   }
   if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
     return "Only @kristujayanti.com email addresses are allowed.";
@@ -284,7 +284,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
           if (!trimmed) return "Email address is required.";
           const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
           if (!emailRegex.test(trimmed)) {
-            return "Please enter a valid Kristu Jayanti email address.";
+            return "Please enter a Kristu Jayanti email address.";
           }
           if (!trimmed.toLowerCase().endsWith("@kristujayanti.com")) {
             return "Only @kristujayanti.com email addresses are allowed.";
