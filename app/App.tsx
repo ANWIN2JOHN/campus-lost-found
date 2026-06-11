@@ -1179,13 +1179,18 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
     const trimmed = searchInput.trim();
     if (trimmed.length === 0) {
       setSearchError(null);
-      setDebouncedSearch("");
-      return;
+      const handler = setTimeout(() => {
+        setDebouncedSearch("");
+      }, 400);
+      return () => clearTimeout(handler);
     }
 
     if (trimmed.length < 3) {
       setSearchError("Please enter at least 3 characters to search.");
-      return;
+      const handler = setTimeout(() => {
+        setDebouncedSearch("");
+      }, 400);
+      return () => clearTimeout(handler);
     }
 
     setSearchError(null);
@@ -1201,13 +1206,18 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
     const trimmed = locationInput.trim();
     if (trimmed.length === 0) {
       setLocationError(null);
-      setDebouncedLocation("");
-      return;
+      const handler = setTimeout(() => {
+        setDebouncedLocation("");
+      }, 400);
+      return () => clearTimeout(handler);
     }
 
     if (trimmed.length < 3) {
       setLocationError("Please enter at least 3 characters to search.");
-      return;
+      const handler = setTimeout(() => {
+        setDebouncedLocation("");
+      }, 400);
+      return () => clearTimeout(handler);
     }
 
     setLocationError(null);
