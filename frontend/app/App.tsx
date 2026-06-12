@@ -79,7 +79,7 @@ function validateReturnStudentName(name: string): string | null {
 }
 
 function validateReturnRollNo(roll: string): string | null {
-  const trimmed = roll.trim();
+  const trimmed = roll.trim().toLowerCase();
   if (!trimmed) return "Roll number is required.";
   if (trimmed.length < 7) return "Roll Number must be at least 7 characters.";
   if (trimmed.length > 30) return "Roll Number must not exceed 30 characters.";
@@ -99,13 +99,13 @@ function validateReturnPhone(phone: string): string | null {
 }
 
 function validateReturnEmail(email: string, rollNo: string): string | null {
-  const trimmed = email.trim();
+  const trimmed = email.trim().toLowerCase();
   if (!trimmed) return "Please enter a college email address.";
   if (!trimmed.endsWith("@kristujayanti.com") || /\s/.test(trimmed)) {
     return "Only @kristujayanti.com domain are allowed.";
   }
   const username = trimmed.split("@")[0];
-  if (username !== rollNo.trim()) {
+  if (username !== rollNo.trim().toLowerCase()) {
     return "Email must match the entered Roll Number.";
   }
   return null;
@@ -121,8 +121,11 @@ function validateReturnedDate(date: string, foundDateStr: string): string | null
   returnDate.setHours(0, 0, 0, 0);
 
   if (isNaN(returnDate.getTime())) return "Returned Date is not a valid date.";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  if (returnDate > today) return "Returned Date cannot be a future date.";
+  // Allow returned date up to tomorrow to bypass potential client/server timezone drifts
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  if (returnDate > tomorrow) return "Returned Date cannot be a future date.";
   if (foundDateStr) {
     const parsedFound = parseDateForCountdown(foundDateStr);
     if (!isNaN(parsedFound.getTime())) {
@@ -142,7 +145,8 @@ function validateReturnedTime(time: string, date: string): string | null {
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   if (date === todayStr) {
     const [h, m] = time.split(":").map(Number);
-    if (h * 60 + m > now.getHours() * 60 + now.getMinutes()) return "Returned Time cannot be in the future.";
+    // Allow up to a 15-minute clock drift/grace period to prevent clock drifts from marking prefilled times as "future"
+    if (h * 60 + m > now.getHours() * 60 + now.getMinutes() + 15) return "Returned Time cannot be in the future.";
   }
   return null;
 }
@@ -150,6 +154,8 @@ function validateReturnedTime(time: string, date: string): string | null {
 function validateReturnRemarks(remarks: string): string | null {
   const trimmed = remarks.trim();
   if (trimmed.length > 500) return "Remarks must not exceed 500 characters.";
+  if (/<[^>]+>/.test(trimmed)) return "Remarks cannot contain HTML tags.";
+  if (/javascript:/i.test(trimmed) || /on\w+\s*=/i.test(trimmed)) return "Remarks contain invalid content.";
   return null;
 }
 
@@ -1896,15 +1902,23 @@ function ItemHistoryPage({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // Dedicated stable statistics state:
+  const [statistics, setStatistics] = useState<{
+    totalReturned: number;
+    lostNotFound: number;
+    disposedItems: number;
+    foundReturned: number;
+  } | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
+
   // Local state for dynamically loaded history data:
-  const [localLostRecords, setLocalLostRecords] = useState<AdminLostItem[]>([]);
-  const [localFoundRecords, setLocalFoundRecords] = useState<AdminFoundItem[]>([]);
+  const [localReturnedLostRecords, setLocalReturnedLostRecords] = useState<AdminLostItem[]>([]);
+  const [localReturnedFoundRecords, setLocalReturnedFoundRecords] = useState<AdminFoundItem[]>([]);
+  const [localNotReturnedLostRecords, setLocalNotReturnedLostRecords] = useState<AdminLostItem[]>([]);
   const [localDisposedHistory, setLocalDisposedHistory] = useState<DisposedRecord[]>([]);
   const [localReturnedHistory, setLocalReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
-  const [returnedLoaded, setReturnedLoaded] = useState(false);
-  const [lostNotFoundLoaded, setLostNotFoundLoaded] = useState(false);
-  const [disposedLoaded, setDisposedLoaded] = useState(false);
+  const isInitialMount = useRef(true);
 
   // Debounced filters & Local filtering loading state:
   const [isFiltering, setIsFiltering] = useState(false);
@@ -1914,49 +1928,130 @@ function ItemHistoryPage({
 
   useEffect(() => {
     let active = true;
-    const loadTabDataset = async () => {
-      if (activeTab === "lost-not-found" && lostNotFoundLoaded) return;
-      if (activeTab === "disposed" && disposedLoaded) return;
-      if (activeTab === "returned" && returnedLoaded) return;
-
-      setIsApiLoading(true);
-      try {
-        if (activeTab === "lost-not-found") {
-          const lost = await getAdminLostItems("Not Returned");
-          if (active) {
-            setLocalLostRecords(lost);
-            setLostNotFoundLoaded(true);
-          }
-        } else if (activeTab === "disposed") {
-          const history = await getHistory();
-          if (active) {
-            setLocalDisposedHistory(history.disposed);
-            setDisposedLoaded(true);
-          }
-        } else if (activeTab === "returned") {
-          const [lost, found, history] = await Promise.all([
+    const loadData = async () => {
+      // On initial mount, load all datasets so statistics counts are fully populated.
+      if (isInitialMount.current) {
+        setIsStatsLoading(true);
+        setIsApiLoading(true);
+        try {
+          const [returnedLost, returnedFound, notReturnedLost, history] = await Promise.all([
             getAdminLostItems("Returned"),
             getAdminFoundItems("Returned"),
+            getAdminLostItems("Not Returned"),
             getHistory(),
           ]);
           if (active) {
-            setLocalLostRecords(lost);
-            setLocalFoundRecords(found);
+            setLocalReturnedLostRecords(returnedLost);
+            setLocalReturnedFoundRecords(returnedFound);
+            setLocalNotReturnedLostRecords(notReturnedLost);
             setLocalReturnedHistory(history.returned);
-            setReturnedLoaded(true);
+            setLocalDisposedHistory(history.disposed);
+
+            // Compute statistics
+            const totalReturned = history.returned.length + returnedLost.length + returnedFound.length;
+            const lostNotFound = notReturnedLost.filter(i => getDaysInfo(i.dateFound).isExpired).length;
+            const disposedItems = history.disposed.length;
+            const foundReturned = returnedFound.length + history.returned.filter(r => r.type === "Found").length;
+
+            setStatistics({
+              totalReturned,
+              lostNotFound,
+              disposedItems,
+              foundReturned,
+            });
+
+            isInitialMount.current = false;
+          }
+        } catch (error) {
+          console.error("Failed to load history initial data", error);
+        } finally {
+          if (active) {
+            setIsApiLoading(false);
+            setIsStatsLoading(false);
           }
         }
-      } catch (error) {
-        console.error("Failed to load history toggle dataset", error);
-      } finally {
-        if (active) setIsApiLoading(false);
+      } else {
+        setIsApiLoading(true);
+        // Clear active tab's state immediately on switch to prevent stale flash in table
+        if (activeTab === "lost-not-found") {
+          setLocalNotReturnedLostRecords([]);
+        } else if (activeTab === "disposed") {
+          setLocalDisposedHistory([]);
+        } else if (activeTab === "returned") {
+          setLocalReturnedLostRecords([]);
+          setLocalReturnedFoundRecords([]);
+          setLocalReturnedHistory([]);
+        }
+
+        try {
+          if (activeTab === "lost-not-found") {
+            const lost = await getAdminLostItems("Not Returned");
+            if (active) {
+              setLocalNotReturnedLostRecords(lost);
+
+              // Update stats for lost-not-found
+              const lostNotFound = lost.filter(i => getDaysInfo(i.dateFound).isExpired).length;
+              setStatistics(prev => prev ? { ...prev, lostNotFound } : null);
+            }
+          } else if (activeTab === "disposed") {
+            const history = await getHistory();
+            if (active) {
+              setLocalDisposedHistory(history.disposed);
+              setLocalReturnedHistory(history.returned);
+
+              // Update stats for disposed and returned
+              const disposedItems = history.disposed.length;
+              setStatistics(prev => {
+                if (!prev) return null;
+                const totalReturned = history.returned.length + localReturnedLostRecords.length + localReturnedFoundRecords.length;
+                const foundReturned = localReturnedFoundRecords.length + history.returned.filter(r => r.type === "Found").length;
+                return {
+                  ...prev,
+                  disposedItems,
+                  totalReturned,
+                  foundReturned,
+                };
+              });
+            }
+          } else if (activeTab === "returned") {
+            const [lost, found, history] = await Promise.all([
+              getAdminLostItems("Returned"),
+              getAdminFoundItems("Returned"),
+              getHistory(),
+            ]);
+            if (active) {
+              setLocalReturnedLostRecords(lost);
+              setLocalReturnedFoundRecords(found);
+              setLocalReturnedHistory(history.returned);
+              setLocalDisposedHistory(history.disposed);
+
+              // Update stats for returned and disposed
+              const totalReturned = history.returned.length + lost.length + found.length;
+              const disposedItems = history.disposed.length;
+              const foundReturned = found.length + history.returned.filter(r => r.type === "Found").length;
+              setStatistics(prev => {
+                if (!prev) return null;
+                return {
+                  ...prev,
+                  totalReturned,
+                  disposedItems,
+                  foundReturned,
+                };
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Failed to load history tab dataset", error);
+        } finally {
+          if (active) setIsApiLoading(false);
+        }
       }
     };
-    loadTabDataset();
+    loadData();
     return () => {
       active = false;
     };
-  }, [activeTab, returnedLoaded, lostNotFoundLoaded, disposedLoaded]);
+  }, [activeTab]);
 
   useEffect(() => {
     setIsFiltering(true);
@@ -1978,13 +2073,13 @@ function ItemHistoryPage({
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
       reporter: i.reporter, reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
     })),
-    ...localLostRecords.filter(i => i.status === "Returned").map(i => ({
+    ...localReturnedLostRecords.map(i => ({
       id: i.id, name: i.name, type: "Lost" as const,
       reportedDate: i.dateFound, closedDate: i.claimedDate || i.lastUpdated,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
       reporter: i.reporterName, reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
     })),
-    ...localFoundRecords.filter(i => i.status === "Returned").map(i => ({
+    ...localReturnedFoundRecords.map(i => ({
       id: i.id, name: i.name, type: "Found" as const,
       reportedDate: i.dateFound, closedDate: i.returnedDate || i.lastUpdated,
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
@@ -2027,8 +2122,8 @@ function ItemHistoryPage({
     : dateAndTypeFilteredReturned;
 
   // Lost & Not Found: lost items that expired (60+ days) and were never returned
-  const lostNotFoundRecords = localLostRecords
-    .filter(i => i.status === "Not Returned" && getDaysInfo(i.dateFound).isExpired)
+  const lostNotFoundRecords = localNotReturnedLostRecords
+    .filter(i => getDaysInfo(i.dateFound).isExpired)
     .map(i => ({
       id: i.id, name: i.name, reportedDate: i.dateFound,
       location: i.location, reporter: i.reporterName,
@@ -2064,15 +2159,21 @@ function ItemHistoryPage({
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { label: "Total Returned", value: returnedItems.length, dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
-          { label: "Lost & Not Found", value: lostNotFoundRecords.length, dot: "bg-red-400", card: "bg-red-50 border-red-200", txt: "text-red-700" },
-          { label: "Disposed Items", value: localDisposedHistory.length, dot: "bg-gray-400", card: "bg-gray-50 border-gray-200", txt: "text-gray-600" },
-          { label: "Found → Returned", value: returnedItems.filter(r => r.type === "Found").length, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
+          { label: "Total Returned", value: statistics?.totalReturned ?? 0, dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
+          { label: "Lost & Not Found", value: statistics?.lostNotFound ?? 0, dot: "bg-red-400", card: "bg-red-50 border-red-200", txt: "text-red-700" },
+          { label: "Disposed Items", value: statistics?.disposedItems ?? 0, dot: "bg-gray-400", card: "bg-gray-50 border-gray-200", txt: "text-gray-600" },
+          { label: "Found → Returned", value: statistics?.foundReturned ?? 0, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
         ].map((s, i) => (
           <div key={i} className={`border rounded-2xl p-4 flex items-center gap-3 shadow-sm ${s.card}`}>
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
             <div>
-              <p className={`text-2xl font-bold ${s.txt}`} style={{ fontFamily: "Outfit, sans-serif" }}>{s.value}</p>
+              <p className={`text-2xl font-bold ${s.txt}`} style={{ fontFamily: "Outfit, sans-serif", display: "flex", alignItems: "center", minHeight: "2rem" }}>
+                {isStatsLoading || !statistics ? (
+                  <span className="inline-block w-8 h-6 bg-current/25 rounded animate-pulse" />
+                ) : (
+                  s.value
+                )}
+              </p>
               <p className={`text-[10px] font-semibold ${s.txt}`} style={{ fontFamily: "DM Sans, sans-serif" }}>{s.label}</p>
             </div>
           </div>
@@ -2082,9 +2183,9 @@ function ItemHistoryPage({
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl shadow-sm w-fit mb-4">
         {([
-          { id: "returned", label: `Returned (${returnedItems.length})`, color: "bg-emerald-500" },
-          { id: "lost-not-found", label: `Lost & Not Found (${lostNotFoundRecords.length})`, color: "bg-red-500" },
-          { id: "disposed", label: `Disposed (${localDisposedHistory.length})`, color: "bg-gray-500" },
+          { id: "returned", label: `Returned (${isStatsLoading || !statistics ? "..." : statistics.totalReturned})`, color: "bg-emerald-500" },
+          { id: "lost-not-found", label: `Lost & Not Found (${isStatsLoading || !statistics ? "..." : statistics.lostNotFound})`, color: "bg-red-500" },
+          { id: "disposed", label: `Disposed (${isStatsLoading || !statistics ? "..." : statistics.disposedItems})`, color: "bg-gray-500" },
         ] as { id: "returned" | "lost-not-found" | "disposed"; label: string; color: string }[]).map(t => (
           <button
             key={t.id}
@@ -2193,7 +2294,7 @@ function ItemHistoryPage({
                     )}
                   </tr>
                 ))
-              ) : localReturnedHistory.length === 0 && localLostRecords.length === 0 && localDisposedHistory.length === 0 ? (
+              ) : localReturnedHistory.length === 0 && localReturnedLostRecords.length === 0 && localReturnedFoundRecords.length === 0 && localNotReturnedLostRecords.length === 0 && localDisposedHistory.length === 0 ? (
                 <tr>
                   <td colSpan={activeTab === "returned" ? 8 : activeTab === "lost-not-found" ? 5 : 3} className="px-4 py-10 text-center text-gray-400 text-sm font-medium" style={{ fontFamily: "DM Sans, sans-serif" }}>
                     No history records available.
@@ -2847,6 +2948,7 @@ function AdminTablePagination({
     </div>
   );
 }
+
 function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean; onRefresh?: () => void }) {
   const [editItem, setEditItem] = useState<AdminLostItem | null>(null);
   const [editStatus, setEditStatus] = useState("");
@@ -2956,6 +3058,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
       {/* Countdown Summary Cards */}
       <CountdownSummaryCards items={items as Array<Record<string, string>>} dateField="dateFound" isLoading={showSkeleton} />
 
+      {/* Search and Filters */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="relative md:col-span-2">
@@ -3984,7 +4087,6 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
       setLostIsStale(true);
       setFoundIsStale(true);
     }
-    await loadNavData(activeNav, true);
   };
 
   const handleItemCreated = async (type: "lost" | "found") => {
