@@ -1902,6 +1902,15 @@ function ItemHistoryPage({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // Dedicated stable statistics state:
+  const [statistics, setStatistics] = useState<{
+    totalReturned: number;
+    lostNotFound: number;
+    disposedItems: number;
+    foundReturned: number;
+  } | null>(null);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
+
   // Local state for dynamically loaded history data:
   const [localReturnedLostRecords, setLocalReturnedLostRecords] = useState<AdminLostItem[]>([]);
   const [localReturnedFoundRecords, setLocalReturnedFoundRecords] = useState<AdminFoundItem[]>([]);
@@ -1920,10 +1929,10 @@ function ItemHistoryPage({
   useEffect(() => {
     let active = true;
     const loadData = async () => {
-      setIsApiLoading(true);
-
       // On initial mount, load all datasets so statistics counts are fully populated.
       if (isInitialMount.current) {
+        setIsStatsLoading(true);
+        setIsApiLoading(true);
         try {
           const [returnedLost, returnedFound, notReturnedLost, history] = await Promise.all([
             getAdminLostItems("Returned"),
@@ -1937,15 +1946,33 @@ function ItemHistoryPage({
             setLocalNotReturnedLostRecords(notReturnedLost);
             setLocalReturnedHistory(history.returned);
             setLocalDisposedHistory(history.disposed);
+
+            // Compute statistics
+            const totalReturned = history.returned.length + returnedLost.length + returnedFound.length;
+            const lostNotFound = notReturnedLost.filter(i => getDaysInfo(i.dateFound).isExpired).length;
+            const disposedItems = history.disposed.length;
+            const foundReturned = returnedFound.length + history.returned.filter(r => r.type === "Found").length;
+
+            setStatistics({
+              totalReturned,
+              lostNotFound,
+              disposedItems,
+              foundReturned,
+            });
+
             isInitialMount.current = false;
           }
         } catch (error) {
           console.error("Failed to load history initial data", error);
         } finally {
-          if (active) setIsApiLoading(false);
+          if (active) {
+            setIsApiLoading(false);
+            setIsStatsLoading(false);
+          }
         }
       } else {
-        // Clear active tab's state immediately on switch to prevent stale flash
+        setIsApiLoading(true);
+        // Clear active tab's state immediately on switch to prevent stale flash in table
         if (activeTab === "lost-not-found") {
           setLocalNotReturnedLostRecords([]);
         } else if (activeTab === "disposed") {
@@ -1961,12 +1988,30 @@ function ItemHistoryPage({
             const lost = await getAdminLostItems("Not Returned");
             if (active) {
               setLocalNotReturnedLostRecords(lost);
+
+              // Update stats for lost-not-found
+              const lostNotFound = lost.filter(i => getDaysInfo(i.dateFound).isExpired).length;
+              setStatistics(prev => prev ? { ...prev, lostNotFound } : null);
             }
           } else if (activeTab === "disposed") {
             const history = await getHistory();
             if (active) {
               setLocalDisposedHistory(history.disposed);
               setLocalReturnedHistory(history.returned);
+
+              // Update stats for disposed and returned
+              const disposedItems = history.disposed.length;
+              setStatistics(prev => {
+                if (!prev) return null;
+                const totalReturned = history.returned.length + localReturnedLostRecords.length + localReturnedFoundRecords.length;
+                const foundReturned = localReturnedFoundRecords.length + history.returned.filter(r => r.type === "Found").length;
+                return {
+                  ...prev,
+                  disposedItems,
+                  totalReturned,
+                  foundReturned,
+                };
+              });
             }
           } else if (activeTab === "returned") {
             const [lost, found, history] = await Promise.all([
@@ -1979,6 +2024,20 @@ function ItemHistoryPage({
               setLocalReturnedFoundRecords(found);
               setLocalReturnedHistory(history.returned);
               setLocalDisposedHistory(history.disposed);
+
+              // Update stats for returned and disposed
+              const totalReturned = history.returned.length + lost.length + found.length;
+              const disposedItems = history.disposed.length;
+              const foundReturned = found.length + history.returned.filter(r => r.type === "Found").length;
+              setStatistics(prev => {
+                if (!prev) return null;
+                return {
+                  ...prev,
+                  totalReturned,
+                  disposedItems,
+                  foundReturned,
+                };
+              });
             }
           }
         } catch (error) {
@@ -2100,16 +2159,16 @@ function ItemHistoryPage({
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {[
-          { label: "Total Returned", value: returnedItems.length, dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
-          { label: "Lost & Not Found", value: lostNotFoundRecords.length, dot: "bg-red-400", card: "bg-red-50 border-red-200", txt: "text-red-700" },
-          { label: "Disposed Items", value: localDisposedHistory.length, dot: "bg-gray-400", card: "bg-gray-50 border-gray-200", txt: "text-gray-600" },
-          { label: "Found → Returned", value: returnedItems.filter(r => r.type === "Found").length, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
+          { label: "Total Returned", value: statistics?.totalReturned ?? 0, dot: "bg-emerald-500", card: "bg-emerald-50 border-emerald-200", txt: "text-emerald-700" },
+          { label: "Lost & Not Found", value: statistics?.lostNotFound ?? 0, dot: "bg-red-400", card: "bg-red-50 border-red-200", txt: "text-red-700" },
+          { label: "Disposed Items", value: statistics?.disposedItems ?? 0, dot: "bg-gray-400", card: "bg-gray-50 border-gray-200", txt: "text-gray-600" },
+          { label: "Found → Returned", value: statistics?.foundReturned ?? 0, dot: "bg-cyan-500", card: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700" },
         ].map((s, i) => (
           <div key={i} className={`border rounded-2xl p-4 flex items-center gap-3 shadow-sm ${s.card}`}>
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
             <div>
               <p className={`text-2xl font-bold ${s.txt}`} style={{ fontFamily: "Outfit, sans-serif", display: "flex", alignItems: "center", minHeight: "2rem" }}>
-                {isApiLoading ? (
+                {isStatsLoading || !statistics ? (
                   <span className="inline-block w-8 h-6 bg-current/25 rounded animate-pulse" />
                 ) : (
                   s.value
@@ -2124,9 +2183,9 @@ function ItemHistoryPage({
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl shadow-sm w-fit mb-4">
         {([
-          { id: "returned", label: `Returned (${isApiLoading && activeTab === "returned" ? "..." : returnedItems.length})`, color: "bg-emerald-500" },
-          { id: "lost-not-found", label: `Lost & Not Found (${isApiLoading && activeTab === "lost-not-found" ? "..." : lostNotFoundRecords.length})`, color: "bg-red-500" },
-          { id: "disposed", label: `Disposed (${isApiLoading && activeTab === "disposed" ? "..." : localDisposedHistory.length})`, color: "bg-gray-500" },
+          { id: "returned", label: `Returned (${isStatsLoading || !statistics ? "..." : statistics.totalReturned})`, color: "bg-emerald-500" },
+          { id: "lost-not-found", label: `Lost & Not Found (${isStatsLoading || !statistics ? "..." : statistics.lostNotFound})`, color: "bg-red-500" },
+          { id: "disposed", label: `Disposed (${isStatsLoading || !statistics ? "..." : statistics.disposedItems})`, color: "bg-gray-500" },
         ] as { id: "returned" | "lost-not-found" | "disposed"; label: string; color: string }[]).map(t => (
           <button
             key={t.id}
