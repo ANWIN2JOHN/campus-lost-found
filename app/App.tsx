@@ -1909,6 +1909,7 @@ function ItemHistoryPage({
   const [localDisposedHistory, setLocalDisposedHistory] = useState<DisposedRecord[]>([]);
   const [localReturnedHistory, setLocalReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
+  const isInitialMount = useRef(true);
 
   // Debounced filters & Local filtering loading state:
   const [isFiltering, setIsFiltering] = useState(false);
@@ -1918,33 +1919,80 @@ function ItemHistoryPage({
 
   useEffect(() => {
     let active = true;
-    const loadAllHistoryData = async () => {
+    const loadData = async () => {
       setIsApiLoading(true);
-      try {
-        const [returnedLost, returnedFound, notReturnedLost, history] = await Promise.all([
-          getAdminLostItems("Returned"),
-          getAdminFoundItems("Returned"),
-          getAdminLostItems("Not Returned"),
-          getHistory(),
-        ]);
-        if (active) {
-          setLocalReturnedLostRecords(returnedLost);
-          setLocalReturnedFoundRecords(returnedFound);
-          setLocalNotReturnedLostRecords(notReturnedLost);
-          setLocalReturnedHistory(history.returned);
-          setLocalDisposedHistory(history.disposed);
+
+      // On initial mount, load all datasets so statistics counts are fully populated.
+      if (isInitialMount.current) {
+        try {
+          const [returnedLost, returnedFound, notReturnedLost, history] = await Promise.all([
+            getAdminLostItems("Returned"),
+            getAdminFoundItems("Returned"),
+            getAdminLostItems("Not Returned"),
+            getHistory(),
+          ]);
+          if (active) {
+            setLocalReturnedLostRecords(returnedLost);
+            setLocalReturnedFoundRecords(returnedFound);
+            setLocalNotReturnedLostRecords(notReturnedLost);
+            setLocalReturnedHistory(history.returned);
+            setLocalDisposedHistory(history.disposed);
+            isInitialMount.current = false;
+          }
+        } catch (error) {
+          console.error("Failed to load history initial data", error);
+        } finally {
+          if (active) setIsApiLoading(false);
         }
-      } catch (error) {
-        console.error("Failed to load history data", error);
-      } finally {
-        if (active) setIsApiLoading(false);
+      } else {
+        // Clear active tab's state immediately on switch to prevent stale flash
+        if (activeTab === "lost-not-found") {
+          setLocalNotReturnedLostRecords([]);
+        } else if (activeTab === "disposed") {
+          setLocalDisposedHistory([]);
+        } else if (activeTab === "returned") {
+          setLocalReturnedLostRecords([]);
+          setLocalReturnedFoundRecords([]);
+          setLocalReturnedHistory([]);
+        }
+
+        try {
+          if (activeTab === "lost-not-found") {
+            const lost = await getAdminLostItems("Not Returned");
+            if (active) {
+              setLocalNotReturnedLostRecords(lost);
+            }
+          } else if (activeTab === "disposed") {
+            const history = await getHistory();
+            if (active) {
+              setLocalDisposedHistory(history.disposed);
+              setLocalReturnedHistory(history.returned);
+            }
+          } else if (activeTab === "returned") {
+            const [lost, found, history] = await Promise.all([
+              getAdminLostItems("Returned"),
+              getAdminFoundItems("Returned"),
+              getHistory(),
+            ]);
+            if (active) {
+              setLocalReturnedLostRecords(lost);
+              setLocalReturnedFoundRecords(found);
+              setLocalReturnedHistory(history.returned);
+              setLocalDisposedHistory(history.disposed);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to load history tab dataset", error);
+        } finally {
+          if (active) setIsApiLoading(false);
+        }
       }
     };
-    loadAllHistoryData();
+    loadData();
     return () => {
       active = false;
     };
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     setIsFiltering(true);
@@ -2060,7 +2108,13 @@ function ItemHistoryPage({
           <div key={i} className={`border rounded-2xl p-4 flex items-center gap-3 shadow-sm ${s.card}`}>
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
             <div>
-              <p className={`text-2xl font-bold ${s.txt}`} style={{ fontFamily: "Outfit, sans-serif" }}>{s.value}</p>
+              <p className={`text-2xl font-bold ${s.txt}`} style={{ fontFamily: "Outfit, sans-serif", display: "flex", alignItems: "center", minHeight: "2rem" }}>
+                {isApiLoading ? (
+                  <span className="inline-block w-8 h-6 bg-current/25 rounded animate-pulse" />
+                ) : (
+                  s.value
+                )}
+              </p>
               <p className={`text-[10px] font-semibold ${s.txt}`} style={{ fontFamily: "DM Sans, sans-serif" }}>{s.label}</p>
             </div>
           </div>
@@ -2070,9 +2124,9 @@ function ItemHistoryPage({
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-white border border-gray-200 rounded-xl shadow-sm w-fit mb-4">
         {([
-          { id: "returned", label: `Returned (${returnedItems.length})`, color: "bg-emerald-500" },
-          { id: "lost-not-found", label: `Lost & Not Found (${lostNotFoundRecords.length})`, color: "bg-red-500" },
-          { id: "disposed", label: `Disposed (${localDisposedHistory.length})`, color: "bg-gray-500" },
+          { id: "returned", label: `Returned (${isApiLoading && activeTab === "returned" ? "..." : returnedItems.length})`, color: "bg-emerald-500" },
+          { id: "lost-not-found", label: `Lost & Not Found (${isApiLoading && activeTab === "lost-not-found" ? "..." : lostNotFoundRecords.length})`, color: "bg-red-500" },
+          { id: "disposed", label: `Disposed (${isApiLoading && activeTab === "disposed" ? "..." : localDisposedHistory.length})`, color: "bg-gray-500" },
         ] as { id: "returned" | "lost-not-found" | "disposed"; label: string; color: string }[]).map(t => (
           <button
             key={t.id}
