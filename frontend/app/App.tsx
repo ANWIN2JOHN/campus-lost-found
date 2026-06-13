@@ -372,13 +372,10 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "date":
         if (!value) return `${isLost ? "Date Lost" : "Date Found"} is required.`;
         if (value > getTodayDateString()) return `${isLost ? "Date Lost" : "Date Found"} cannot be in the future.`;
-        if (isLost) {
-          const minDateStr = get30DaysAgoDateString();
-          if (value < minDateStr) {
-            return "Date Lost cannot be older than 30 days.";
-          }
+        const minDateStr = get30DaysAgoDateString();
+        if (value < minDateStr) {
+          return `${isLost ? "Date Lost" : "Date Found"} cannot be older than 30 days.`;
         }
-        return null;
         return null;
       default:
         return null;
@@ -840,7 +837,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                       id="date"
                       type="date"
                       value={form.date}
-                      min={isLost ? get30DaysAgoDateString() : undefined}
+                      min={get30DaysAgoDateString()}
                       max={getTodayDateString()}
                       onChange={set("date")}
                       onBlur={() => handleBlur("date")}

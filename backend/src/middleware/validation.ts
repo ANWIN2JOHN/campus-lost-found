@@ -174,6 +174,7 @@ export const schemas = {
     name: Joi.string().trim().required(),
     description: Joi.string().trim().required(),
     category: Joi.string().required(),
+    customCategory: Joi.string().trim().optional().allow(""),
     location: Joi.string().trim().required(),
     dateFound: Joi.date().required(),
     collectFrom: Joi.string().required(),

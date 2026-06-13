@@ -17,6 +17,7 @@ interface ReportFoundItemInput {
   name: string;
   description: string;
   category: string;
+  customCategory?: string;
   location: string;
   dateFound: Date;
   collectFrom: string;
@@ -41,6 +42,7 @@ export class FoundItemService {
       name: data.name,
       description: data.description,
       category: data.category,
+      customCategory: data.customCategory,
       location: data.location,
       dateFound: data.dateFound,
       collectFrom: data.collectFrom,

@@ -51,6 +51,7 @@ export interface IFoundItem {
   name: string;
   description: string;
   category: string;
+  customCategory?: string;
   location: string;
   dateFound: Date;
   collectFrom: string;

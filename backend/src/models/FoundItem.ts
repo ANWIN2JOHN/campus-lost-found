@@ -49,6 +49,10 @@ const foundItemSchema = new Schema<IFoundItemDocument>(
       required: true,
       enum: CATEGORIES.map((c) => c.name),
     },
+    customCategory: {
+      type: String,
+      trim: true,
+    },
     location: {
       type: String,
       required: true,

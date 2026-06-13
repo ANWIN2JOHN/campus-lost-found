@@ -91,7 +91,7 @@ function mapFoundItem(item: any): BrowseItem {
     collectFrom: item.collectFrom || "Admin Reception",
     description: item.description || "No description available.",
     image: item.imageUrl || "",
-    category: item.category || "Others",
+    category: item.category === "Others" && item.customCategory ? item.customCategory : (item.category || "Others"),
   };
 }
 
