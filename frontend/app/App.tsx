@@ -2443,7 +2443,7 @@ function ExpiredItemsPage({
 
   const expiredFoundRecords = foundAdminRecords
     .filter(i => i.status === "Not Returned" && getDaysInfo(i.foundAt).isExpired)
-    .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.foundAt, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.foundAt).daysElapsed }));
+    .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.dateFound, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.foundAt).daysElapsed }));
 
   const searchQuery = searchTerm.trim().toLowerCase();
   const allExpired = expiredFoundRecords
@@ -3579,9 +3579,8 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
               ) : pageItems.map((item, i) => (
                 <tr key={item.id} className={`border-b border-gray-100 hover:bg-cyan-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
                   <td className="px-4 py-3 text-gray-900 font-medium whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="text-gray-700">{item.foundAt.split(", ")[0]}</div>
-                    <div className="text-gray-400 text-[10px]">{item.foundAt.split(", ")[1]}</div>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-700">
+                    {item.dateFound}
                   </td>
                   <td className="px-4 py-3 text-gray-600 max-w-[130px]">
                     <span className="truncate block">{item.location}</span>
