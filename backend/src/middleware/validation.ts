@@ -7,32 +7,32 @@ import { Request, Response, NextFunction } from "express";
 import Joi, { ObjectSchema } from "joi";
 
 export function validateRequest(schema: ObjectSchema) {
-return (req: Request, res: Response, next: NextFunction): void => {
-const { error, value } = schema.validate(req.body, {
-abortEarly: false,
-stripUnknown: true,
-});
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const { error, value } = schema.validate(req.body, {
+      abortEarly: false,
+      stripUnknown: true,
+    });
 
 
-if (error) {
-  const details = error.details.map((detail) => ({
-    field: detail.path.join("."),
-    message: detail.message,
-  }));
+    if (error) {
+      const details = error.details.map((detail) => ({
+        field: detail.path.join("."),
+        message: detail.message,
+      }));
 
-  res.status(400).json({
-    success: false,
-    message: "Validation failed",
-    details,
-  });
-  return;
-}
+      res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        details,
+      });
+      return;
+    }
 
-req.body = value;
-next();
+    req.body = value;
+    next();
 
 
-};
+  };
 }
 
 const nameValidator = Joi.string()
@@ -189,10 +189,60 @@ export const schemas = {
     returnedBy: nameValidator.optional().allow(""),
     returnedRollNo: Joi.string().trim().optional().allow(""),
     // Found item update status fields
-    claimedBy: nameValidator.optional().allow(""),
-    claimedRollNo: Joi.string().trim().optional().allow(""),
-    claimedPhone: phoneValidator.optional().allow(""),
-    claimedEmail: emailValidator.optional().allow(""),
+    claimedBy: Joi.string()
+      .trim()
+      .min(8)
+      .max(100)
+      .pattern(/^[a-zA-Z\s]+$/)
+      .messages({
+        "string.pattern.base": '"Student Name" can only contain letters and spaces',
+        "string.min": '"Student Name" must be at least 8 characters',
+        "string.max": '"Student Name" must not exceed 100 characters',
+      })
+      .when("status", {
+        is: "Returned",
+        then: Joi.required(),
+        otherwise: Joi.optional().allow(""),
+      }),
+    claimedRollNo: Joi.string()
+      .trim()
+      .min(7)
+      .max(30)
+      .pattern(/^[a-z0-9]+$/)
+      .messages({
+        "string.pattern.base": "Only lowercase alphanumeric characters allowed",
+        "string.min": '"Roll Number" must be at least 7 characters',
+        "string.max": '"Roll Number" must not exceed 30 characters',
+      })
+      .when("status", {
+        is: "Returned",
+        then: Joi.required(),
+        otherwise: Joi.optional().allow(""),
+      }),
+    claimedPhone: Joi.string()
+      .trim()
+      .pattern(/^\d{10}$/)
+      .messages({
+        "string.pattern.base": "Phone Number must contain exactly 10 digits",
+      })
+      .when("status", {
+        is: "Returned",
+        then: Joi.required(),
+        otherwise: Joi.optional().allow(""),
+      }),
+    claimedEmail: Joi.string()
+      .trim()
+      .email()
+      .lowercase()
+      .pattern(/^[a-z0-9._%+-]+@kristujayanti\.com$/)
+      .messages({
+        "string.pattern.base": "Only @kristujayanti.com domain are allowed",
+      })
+      .when("status", {
+        is: "Returned",
+        then: Joi.required(),
+        otherwise: Joi.optional().allow(""),
+      }),
   }),
 
   // Mark as disposed

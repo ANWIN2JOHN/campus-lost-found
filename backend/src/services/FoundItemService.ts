@@ -139,8 +139,8 @@ export class FoundItemService {
   ): Promise<IFoundItem> {
     const mongoId = id.replace("FOUND-", "");
 
-      const item = await FoundItem.findByIdAndUpdate(
-        mongoId,
+    const item = await FoundItem.findByIdAndUpdate(
+      mongoId,
       {
         status,
         claimedBy,

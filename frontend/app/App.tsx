@@ -594,7 +594,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
           backendErrors[fieldKey] = det.message;
         });
         setErrors(backendErrors);
-        
+
         const domOrder = [
           "name", "location", "date", "collectFrom", "description", "category", "customCategory",
           isStudent ? "studentName" : "staffName",
@@ -2877,7 +2877,7 @@ function CountdownSummaryCards({ items, dateField, isLoading }: { items: Array<R
     { active: 0, expiring: 0, last10: 0, expired: 0 }
   );
   const cards = [
-    { label: "Total Unclaimed", value: notReturned.length, cls: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700", dot: "bg-cyan-400" },
+    { label: "Total Unclaimed", value: stats.active + stats.expiring + stats.last10, cls: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700", dot: "bg-cyan-400" },
     { label: "Expiring in 30 Days", value: stats.expiring + stats.last10, cls: "bg-amber-50 border-amber-200", txt: "text-amber-700", dot: "bg-amber-400" },
     { label: "Last 10 Days", value: stats.last10, cls: "bg-red-50 border-red-200", txt: "text-red-700", dot: "bg-red-500" },
     { label: "Expired – Awaiting Removal", value: stats.expired, cls: "bg-gray-50 border-gray-200", txt: "text-gray-600", dot: "bg-gray-400" },
@@ -3105,6 +3105,18 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
     }
   };
 
+  const statsItems = items.filter(item => {
+    if (item.status === "Returned") return false;
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = !q ||
+      item.name.toLowerCase().includes(q) ||
+      item.location.toLowerCase().includes(q) ||
+      item.reporterName.toLowerCase().includes(q) ||
+      item.reportedAt.toLowerCase().includes(q);
+    const matchesLocation = !filterLocation || item.location.toLowerCase().includes(filterLocation.toLowerCase());
+    return matchesSearch && matchesLocation;
+  });
+
   return (
     <main className="flex-1 overflow-y-auto px-5 py-4 bg-gray-50">
       <div className="mb-4">
@@ -3113,7 +3125,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
       </div>
 
       {/* Countdown Summary Cards */}
-      <CountdownSummaryCards items={items as Array<Record<string, string>>} dateField="dateFound" isLoading={showSkeleton} />
+      <CountdownSummaryCards items={statsItems as Array<Record<string, string>>} dateField="dateFound" isLoading={showSkeleton} />
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
@@ -3804,11 +3816,19 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
 
                     {/* Returned Date + Time */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <style>{`
+                        #edit-returned-date::-webkit-calendar-picker-indicator,
+                        #edit-returned-time::-webkit-calendar-picker-indicator {
+                          display: none !important;
+                          -webkit-appearance: none !important;
+                        }
+                      `}</style>
                       <div>
                         <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Date <span style={{ color: "#ef4444" }}>*</span></label>
                         <input
                           id="edit-returned-date"
                           type="date"
+                          readOnly
                           disabled={isSaveLoading}
                           value={editReturnedDate}
                           max={getTodayDateString()}
@@ -3831,6 +3851,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                         <input
                           id="edit-returned-time"
                           type="time"
+                          readOnly
                           disabled={isSaveLoading}
                           value={editReturnedTime}
                           onChange={e => { setEditReturnedTime(e.target.value); setFieldErrors(prev => ({ ...prev, time: "" })); }}
