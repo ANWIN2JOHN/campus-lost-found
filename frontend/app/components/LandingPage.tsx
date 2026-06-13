@@ -47,6 +47,12 @@ export default function LandingPage({ onBrowseFound, onAdminLogin }: LandingPage
 const [statsLoading, setStatsLoading] = useState(true);
 
 useEffect(() => {
+  if (sessionStorage.getItem("justLoggedOut") === "true") {
+    sessionStorage.removeItem("justLoggedOut");
+    setStatsLoading(false);
+    return;
+  }
+
   Promise.all([
     fetch(
       "https://campus-lost-found-ghvc.onrender.com/api/items/lost?limit=1000&status=Not%20Returned"

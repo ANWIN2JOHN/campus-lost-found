@@ -247,8 +247,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
     switch (key) {
       case "name":
         if (!trimmed) return "Item Name is required.";
-        if (isLost && trimmed.length < 2) return "Item Name must be at least 10 characters.";
-        if (!isLost && trimmed.length < 10) return "Item Name must be at least 10 characters.";
+        if (trimmed.length < 10) return "Item Name must be at least 10 characters.";
         if (trimmed.length > 100) return "Item Name must not exceed 100 characters.";
         return null;
       case "location": {
@@ -542,12 +541,12 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
     setSubmitting(true);
 
     try {
-      const finalCategory = form.category === "Others" ? form.customCategory.trim() : form.category;
       await reportItem({
         type: itemType,
         name: form.name.trim(),
         description: form.description.trim(),
-        category: finalCategory,
+        category: form.category,
+        customCategory: form.category === "Others" ? form.customCategory.trim() : undefined,
         location: form.location.trim(),
         date: form.date,
         collectFrom: isLost ? undefined : form.collectFrom,
@@ -1556,22 +1555,22 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
 
 // ─── Logout Confirm Modal ──────────────────────────────────────────────────
 
-function LogoutModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
+function LogoutModal({ onConfirm, onClose, loading }: { onConfirm: () => void; onClose: () => void; loading?: boolean }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !loading) onClose(); };
     document.addEventListener("keydown", onKey);
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [onClose, loading]);
 
   return (
     <div
-      onClick={onClose}
+      onClick={loading ? undefined : onClose}
       style={{
         transition: "background 0.25s, backdrop-filter 0.25s",
         backdropFilter: visible ? "blur(4px)" : "blur(0px)",
@@ -1613,16 +1612,19 @@ function LogoutModal({ onConfirm, onClose }: { onConfirm: () => void; onClose: (
         <div className="flex gap-3 w-full">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 text-sm font-medium hover:bg-gray-100 hover:border-gray-300 transition-all duration-150"
+            disabled={loading}
+            className={`flex-1 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 text-sm font-medium hover:bg-gray-100 hover:border-gray-300 transition-all duration-150 ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
             style={{ fontFamily: "DM Sans, sans-serif" }}
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-xl bg-red-700 text-white text-sm font-semibold hover:bg-red-800 active:bg-red-900 transition-all duration-150 shadow-sm"
+            disabled={loading}
+            className={`flex-1 py-2.5 rounded-xl bg-red-700 text-white text-sm font-semibold hover:bg-red-800 active:bg-red-900 transition-all duration-150 shadow-sm flex items-center justify-center gap-1.5 ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
             style={{ fontFamily: "DM Sans, sans-serif" }}
           >
+            {loading && <Loader2 size={14} className="animate-spin" />}
             Logout
           </button>
         </div>
@@ -1889,12 +1891,14 @@ function ItemHistoryPage({
   disposedHistory,
   returnedHistory,
   isLoading,
+  isLoggingOut,
 }: {
   foundAdminRecords: AdminFoundItem[];
   lostAdminRecords: AdminLostItem[];
   disposedHistory: DisposedRecord[];
   returnedHistory: ReturnedHistoryRecord[];
   isLoading?: boolean;
+  isLoggingOut?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<"returned" | "lost-not-found" | "disposed">("returned");
   const [searchTerm, setSearchTerm] = useState("");
@@ -1929,6 +1933,7 @@ function ItemHistoryPage({
   useEffect(() => {
     let active = true;
     const loadData = async () => {
+      if (isLoggingOut) return;
       // On initial mount, load all datasets so statistics counts are fully populated.
       if (isInitialMount.current) {
         setIsStatsLoading(true);
@@ -2051,7 +2056,7 @@ function ItemHistoryPage({
     return () => {
       active = false;
     };
-  }, [activeTab]);
+  }, [activeTab, isLoggingOut]);
 
   useEffect(() => {
     setIsFiltering(true);
@@ -2707,7 +2712,7 @@ function ExpiredItemsPage({
 
 // ─── Admin View ────────────────────────────────────────────────────────────
 
-function AdminSidebar({ active, setActive, onLogoutRequest, isOpen, onClose }: { active: string; setActive: (s: string) => void; onLogoutRequest: () => void; isOpen: boolean; onClose: () => void }) {
+function AdminSidebar({ active, setActive, onLogoutRequest, isOpen, onClose, isLoggingOut }: { active: string; setActive: (s: string) => void; onLogoutRequest: () => void; isOpen: boolean; onClose: () => void; isLoggingOut?: boolean }) {
   const sections = [
     {
       label: "ITEMS",
@@ -2787,13 +2792,15 @@ function AdminSidebar({ active, setActive, onLogoutRequest, isOpen, onClose }: {
           </div>
           <button
             onClick={() => {
+              if (isLoggingOut) return;
               onClose();
               onLogoutRequest();
             }}
+            disabled={isLoggingOut}
             title="Logout"
-            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 hover:shadow-sm transition-all duration-150"
+            className={`p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 hover:shadow-sm transition-all duration-150 ${isLoggingOut ? "opacity-50 cursor-not-allowed" : ""}`}
           >
-            <LogOut size={14} />
+            {isLoggingOut ? <Loader2 size={14} className="animate-spin" /> : <LogOut size={14} />}
           </button>
         </div>
       </div>
@@ -3971,7 +3978,7 @@ function GuidelinesPage() {
   );
 }
 
-function SettingsPage({ onLogoutRequest }: { onLogoutRequest: () => void }) {
+function SettingsPage({ onLogoutRequest, isLoggingOut }: { onLogoutRequest: () => void; isLoggingOut?: boolean }) {
   return (
     <main className="flex-1 overflow-y-auto px-5 py-4 bg-gray-50">
       <div className="max-w-3xl mx-auto">
@@ -4003,11 +4010,12 @@ function SettingsPage({ onLogoutRequest }: { onLogoutRequest: () => void }) {
             <h2 className="text-base font-semibold text-gray-900 mb-4" style={{ fontFamily: "Outfit, sans-serif" }}>Session</h2>
             <button
               onClick={onLogoutRequest}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 font-medium text-sm transition-all duration-150 w-full justify-center border border-red-200"
+              disabled={isLoggingOut}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 font-medium text-sm transition-all duration-150 w-full justify-center border border-red-200 ${isLoggingOut ? "opacity-50 cursor-not-allowed" : ""}`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             >
-              <LogOut size={16} />
-              Logout
+              {isLoggingOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+              {isLoggingOut ? "Logging out..." : "Logout"}
             </button>
           </div>
         </div>
@@ -4020,6 +4028,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [activeNav, setActiveNav] = useState("lost-items");
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Shared item state lifted here so pages can communicate
   const [sharedFoundItems, setSharedFoundItems] = useState<AdminFoundItem[]>([]);
@@ -4098,8 +4107,9 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   };
 
   useEffect(() => {
+    if (isLoggingOut) return;
     loadNavData(activeNav);
-  }, [activeNav, lostIsStale, foundIsStale]);
+  }, [activeNav, lostIsStale, foundIsStale, isLoggingOut]);
 
   const handleDispose = (record: DisposedRecord) => {
     setDisposedHistory(prev => [record, ...prev]);
@@ -4114,9 +4124,24 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
     setMobileMenuOpen(false);
   };
 
-  const openLogoutModal = () => setShowLogoutModal(true);
-  const closeLogoutModal = () => setShowLogoutModal(false);
-  const confirmLogout = () => { setShowLogoutModal(false); onLogout(); };
+  const openLogoutModal = () => { if (!isLoggingOut) setShowLogoutModal(true); };
+  const closeLogoutModal = () => { if (!isLoggingOut) setShowLogoutModal(false); };
+  const confirmLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      sessionStorage.setItem("justLoggedOut", "true");
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      onLogout();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
+  };
 
   const renderMain = () => {
     if (activeNav === "upload-item") {
@@ -4140,13 +4165,13 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
       );
     }
     if (activeNav === "history") {
-      return <ItemHistoryPage foundAdminRecords={sharedFoundItems} lostAdminRecords={sharedLostItems} disposedHistory={disposedHistory} returnedHistory={returnedHistory} isLoading={isLoading} />;
+      return <ItemHistoryPage foundAdminRecords={sharedFoundItems} lostAdminRecords={sharedLostItems} disposedHistory={disposedHistory} returnedHistory={returnedHistory} isLoading={isLoading} isLoggingOut={isLoggingOut} />;
     }
     if (activeNav === "guidelines") {
       return <GuidelinesPage />;
     }
     if (activeNav === "settings") {
-      return <SettingsPage onLogoutRequest={openLogoutModal} />;
+      return <SettingsPage onLogoutRequest={openLogoutModal} isLoggingOut={isLoggingOut} />;
     }
     return <LostItemsPage items={sharedLostItems} setItems={setSharedLostItems} onReturn={handleReturn} isLoading={isLoading} onRefresh={refreshData} />;
   };
@@ -4165,6 +4190,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
         onLogoutRequest={openLogoutModal}
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        isLoggingOut={isLoggingOut}
       />
       <div className="flex-1 flex flex-col min-w-0">
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
@@ -4192,7 +4218,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
         {renderMain()}
       </div>
       {showLogoutModal && (
-        <LogoutModal onConfirm={confirmLogout} onClose={closeLogoutModal} />
+        <LogoutModal onConfirm={confirmLogout} onClose={closeLogoutModal} loading={isLoggingOut} />
       )}
       <Toaster position="top-right" richColors closeButton />
     </div>

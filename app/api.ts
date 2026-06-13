@@ -76,7 +76,7 @@ function mapLostItem(item: any): BrowseItem {
     collectFrom: item.collectFrom || "Admin Reception",
     description: item.description || "No description available.",
     image: item.imageUrl || "",
-    category: item.category || "Others",
+    category: item.category === "Others" && item.customCategory ? item.customCategory : (item.category || "Others"),
   };
 }
 
@@ -281,6 +281,7 @@ export type ReportItemInput = {
   name: string;
   description: string;
   category: string;
+  customCategory?: string;
   location: string;
   date: string;
   collectFrom?: string;
@@ -302,6 +303,7 @@ export async function reportItem(input: ReportItemInput): Promise<AdminLostItem 
     name: input.name,
     description: input.description,
     category: input.category,
+    customCategory: input.customCategory,
     location: input.location,
     contactType: input.contactType,
     studentName: input.studentName,

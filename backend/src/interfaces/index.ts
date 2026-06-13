@@ -32,6 +32,7 @@ export interface ILostItem {
   name: string;
   description: string;
   category: string;
+  customCategory?: string;
   location: string;
   dateLost: Date;
   contact: IContactInfo;

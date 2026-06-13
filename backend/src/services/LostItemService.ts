@@ -17,6 +17,7 @@ interface ReportLostItemInput {
   name: string;
   description: string;
   category: string;
+  customCategory?: string;
   location: string;
   dateLost: Date;
   contactType: "student" | "staff";
@@ -40,6 +41,7 @@ export class LostItemService {
       name: data.name,
       description: data.description,
       category: data.category,
+      customCategory: data.customCategory,
       location: data.location,
       dateLost: data.dateLost,
       contact,

@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { Search, Package, MapPin, ArrowRight, AlertCircle, ChevronDown } from "lucide-react";
 import collegeLogo from "../../imports/WhatsApp_Image_2026-06-01_at_10.51.49_AM.jpeg";
 import headerCenterImg from "../../imports/WhatsApp_Image_2026-06-01_at_11.03.14_AM.jpeg";
@@ -51,6 +51,12 @@ const howItWorks = [
 
 export default function LandingPage({ onBrowseFound, onAdminLogin }: LandingPageProps) {
   const statsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (sessionStorage.getItem("justLoggedOut") === "true") {
+      sessionStorage.removeItem("justLoggedOut");
+    }
+  }, []);
 
   const scrollToStats = () => {
     statsRef.current?.scrollIntoView({ behavior: "smooth" });
