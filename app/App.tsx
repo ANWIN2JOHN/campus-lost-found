@@ -1539,7 +1539,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
                 </div>
 
                 {/* 60-day countdown */}
-                <ClaimCountdownBar dateStr={item.reportedAt || item.foundAt || item.date} />
+                <ClaimCountdownBar dateStr={item.reportedAt || item.date} />
               </div>
             </div>
           ))}

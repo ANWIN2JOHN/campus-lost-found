@@ -9,15 +9,7 @@ interface LandingPageProps {
   onAdminLogin: () => void;
 }
 
-const TOTAL = 32;
-const LOST = 16;
-const FOUND = 16;
-const RETURNED = 13;
-const LOST_PCT = Math.round((LOST / TOTAL) * 100);
-const FOUND_PCT = Math.round((FOUND / TOTAL) * 100);
-const RETURN_RATE = Math.round((RETURNED / TOTAL) * 100);
-
-function StatRing({ pct, color, label, animate }: { pct: number; color: string; label: string; animate: boolean }) {
+function StatRing({ pct, color, label, animate = false }: { pct: number; color: string; label: string; animate?: boolean }) {
   const r = 22;
   const circ = 2 * Math.PI * r;
   const [currentPct, setCurrentPct] = useState(0);
@@ -48,9 +40,9 @@ function StatRing({ pct, color, label, animate }: { pct: number; color: string; 
   return (
     <div className="relative shrink-0" style={{ width: 56, height: 56 }}>
       <svg width="56" height="56" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="28" cy="28" r={r} fill="none" stroke="#e2e8f0" strokeWidth="4.5" />
-        <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4.5"
-          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+      <circle cx="28" cy="28" r={r} fill="none" stroke="#e2e8f0" strokeWidth="4.5" />
+      <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4.5"
+        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
         style={{ color, fontFamily: "DM Sans, sans-serif" }}>
@@ -60,7 +52,7 @@ function StatRing({ pct, color, label, animate }: { pct: number; color: string; 
   );
 }
 
-function AnimatedCounter({ value, animate }: { value: number; animate: boolean }) {
+function AnimatedCounter({ value, animate = false }: { value: number; animate?: boolean }) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -84,13 +76,6 @@ function AnimatedCounter({ value, animate }: { value: number; animate: boolean }
 
   return <>{animate ? count : value}</>;
 }
-
-const overviewStats = [
-  { ring: <StatRing pct={100} color="#0891b2" label="ALL" />, value: TOTAL, label: "Total Reported", labelColor: "text-slate-700", border: "border-slate-200" },
-  { ring: <StatRing pct={LOST_PCT} color="#f59e0b" label={`${LOST_PCT}%`} />, value: LOST, label: "Lost Items", labelColor: "text-amber-500", border: "border-amber-200" },
-  { ring: <StatRing pct={FOUND_PCT} color="#10b981" label={`${FOUND_PCT}%`} />, value: FOUND, label: "Found Items", labelColor: "text-emerald-500", border: "border-emerald-200" },
-  { ring: <StatRing pct={RETURN_RATE} color="#8b5cf6" label={`${RETURN_RATE}%`} />, value: RETURNED, label: "Returned", labelColor: "text-violet-500", border: "border-violet-200" },
-];
 
 const howItWorks = [
   { icon: <Search size={24} />, step: "01", title: "Search & Browse", desc: "Explore our database of lost and found items. Filter by location, date, and category.", g: "from-cyan-500 to-teal-600", bg: "from-cyan-50 to-teal-50", border: "border-cyan-100" },
