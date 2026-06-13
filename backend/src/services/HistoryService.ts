@@ -68,7 +68,7 @@ export class HistoryService {
     });
 
     const lostAndNotFound = allLostItems.filter((item) =>
-      isItemExpired(item.dateLost)
+      isItemExpired(item.reportedAt || item.dateLost)
     );
 
     let filtered = lostAndNotFound;

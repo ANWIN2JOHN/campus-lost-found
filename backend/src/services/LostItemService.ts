@@ -101,7 +101,7 @@ export class LostItemService {
     // Add countdown info
     const itemsWithCountdown = items.map((item) => ({
       ...item.toObject(),
-      countdownInfo: getCountdownInfo(item.dateLost),
+      countdownInfo: getCountdownInfo(item.reportedAt || item.dateLost),
     }));
 
     return {
@@ -125,7 +125,7 @@ export class LostItemService {
 
     return {
       ...item.toObject(),
-      countdownInfo: getCountdownInfo(item.dateLost),
+      countdownInfo: getCountdownInfo(item.reportedAt || item.dateLost),
     };
   }
 
@@ -184,7 +184,7 @@ const item = await LostItem.findByIdAndUpdate(
       status: ITEM_STATUS.NOT_RETURNED,
     });
 
-    return items.filter((item) => isItemExpired(item.dateLost));
+    return items.filter((item) => isItemExpired(item.reportedAt || item.dateLost));
   }
 
   static async getAdminItems(

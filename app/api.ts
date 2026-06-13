@@ -77,6 +77,7 @@ function mapLostItem(item: any): BrowseItem {
     description: item.description || "No description available.",
     image: item.imageUrl || "",
     category: item.category === "Others" && item.customCategory ? item.customCategory : (item.category || "Others"),
+    reportedAt: formatDateTimeString(item.reportedAt || item.createdAt || item.dateLost),
   };
 }
 
@@ -92,6 +93,7 @@ function mapFoundItem(item: any): BrowseItem {
     description: item.description || "No description available.",
     image: item.imageUrl || "",
     category: item.category === "Others" && item.customCategory ? item.customCategory : (item.category || "Others"),
+    reportedAt: formatDateTimeString(item.foundAt || item.createdAt || item.dateFound),
   };
 }
 

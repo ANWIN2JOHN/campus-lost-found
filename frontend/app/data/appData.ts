@@ -10,6 +10,7 @@ export type BrowseItem = {
   description: string;
   image: string;
   category: string;
+  reportedAt?: string;
 };
 
 export type CategoryStat = {

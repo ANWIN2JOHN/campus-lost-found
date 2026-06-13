@@ -1305,7 +1305,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
 
   const filteredItems = useMemo(() => {
     return backendItems.filter((item) => {
-      const matchesCountdown = !countdownFilter || getDaysInfo(item.date).countdownStatus === countdownFilter;
+      const matchesCountdown = !countdownFilter || getDaysInfo(item.reportedAt || item.date).countdownStatus === countdownFilter;
       return matchesCountdown;
     });
   }, [backendItems, countdownFilter]);
@@ -1506,7 +1506,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
               style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
             >
               {/* Card body */}
-              <div className={`p-4 ${getDaysInfo(item.date).isExpired ? "opacity-70" : ""}`}>
+              <div className={`p-4 ${getDaysInfo(item.reportedAt || item.date).isExpired ? "opacity-70" : ""}`}>
                 <div className="mb-2">
                   <CardNameTooltip
                     name={item.name}
@@ -1539,7 +1539,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
                 </div>
 
                 {/* 60-day countdown */}
-                <ClaimCountdownBar dateStr={item.date} />
+                <ClaimCountdownBar dateStr={item.reportedAt || item.foundAt || item.date} />
               </div>
             </div>
           ))}
@@ -2001,7 +2001,7 @@ function ItemHistoryPage({
 
             // Compute statistics
             const totalReturned = history.returned.length + returnedLost.length + returnedFound.length;
-            const lostNotFound = notReturnedLost.filter(i => getDaysInfo(i.dateFound).isExpired).length;
+            const lostNotFound = notReturnedLost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
             const disposedItems = history.disposed.length;
             const foundReturned = returnedFound.length + history.returned.filter(r => r.type === "Found").length;
 
@@ -2042,7 +2042,7 @@ function ItemHistoryPage({
               setLocalNotReturnedLostRecords(lost);
 
               // Update stats for lost-not-found
-              const lostNotFound = lost.filter(i => getDaysInfo(i.dateFound).isExpired).length;
+              const lostNotFound = lost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
               setStatistics(prev => prev ? { ...prev, lostNotFound } : null);
             }
           } else if (activeTab === "disposed") {
@@ -2175,12 +2175,12 @@ function ItemHistoryPage({
 
   // Lost & Not Found: lost items that expired (60+ days) and were never returned
   const lostNotFoundRecords = localNotReturnedLostRecords
-    .filter(i => getDaysInfo(i.dateFound).isExpired)
+    .filter(i => getDaysInfo(i.reportedAt).isExpired)
     .map(i => ({
-      id: i.id, name: i.name, reportedDate: i.dateFound,
+      id: i.id, name: i.name, reportedDate: i.reportedAt,
       location: i.location, reporter: i.reporterName,
       reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
-      daysElapsed: getDaysInfo(i.dateFound).daysElapsed,
+      daysElapsed: getDaysInfo(i.reportedAt).daysElapsed,
     }));
 
   const dateFilteredLostNotFound = lostNotFoundRecords.filter(r => matchesExactDate(r.reportedDate, debouncedDateTo));
@@ -2442,8 +2442,8 @@ function ExpiredItemsPage({
   const [showConfirm, setShowConfirm] = useState(false);
 
   const expiredFoundRecords = foundAdminRecords
-    .filter(i => i.status === "Not Returned" && getDaysInfo(i.dateFound).isExpired)
-    .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.dateFound, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.dateFound).daysElapsed }));
+    .filter(i => i.status === "Not Returned" && getDaysInfo(i.foundAt).isExpired)
+    .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.foundAt, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.foundAt).daysElapsed }));
 
   const searchQuery = searchTerm.trim().toLowerCase();
   const allExpired = expiredFoundRecords
@@ -3027,7 +3027,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
   const filteredItems = items
     .filter(item => {
       if (item.status === "Returned") return false;
-      if (item.status === "Not Returned" && getDaysInfo(item.dateFound).isExpired) return false;
+      if (item.status === "Not Returned" && getDaysInfo(item.reportedAt).isExpired) return false;
       const q = searchTerm.toLowerCase();
       const matchesSearch = !q ||
         item.name.toLowerCase().includes(q) ||
@@ -3035,7 +3035,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
         item.reporterName.toLowerCase().includes(q) ||
         item.reportedAt.toLowerCase().includes(q);
       const matchesLocation = !filterLocation || item.location.toLowerCase().includes(filterLocation.toLowerCase());
-      const matchesCountdown = !filterCountdown || getDaysInfo(item.dateFound).countdownStatus === filterCountdown;
+      const matchesCountdown = !filterCountdown || getDaysInfo(item.reportedAt).countdownStatus === filterCountdown;
       return matchesSearch && matchesLocation && matchesCountdown;
     })
     .sort((a, b) => parseDateTime(b.reportedAt) - parseDateTime(a.reportedAt));
@@ -3122,7 +3122,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
       </div>
 
       {/* Countdown Summary Cards */}
-      <CountdownSummaryCards items={statsItems as Array<Record<string, string>>} dateField="dateFound" isLoading={showSkeleton} />
+      <CountdownSummaryCards items={statsItems as Array<Record<string, string>>} dateField="reportedAt" isLoading={showSkeleton} />
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
@@ -3221,7 +3221,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <CountdownChip dateStr={item.dateFound} />
+                    <CountdownChip dateStr={item.reportedAt} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -3350,14 +3350,14 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
   const filteredItems = items
     .filter(item => {
       if (item.status === "Returned") return false;
-      if (item.status === "Not Returned" && getDaysInfo(item.dateFound).isExpired) return false;
+      if (item.status === "Not Returned" && getDaysInfo(item.foundAt).isExpired) return false;
       const q = searchTerm.toLowerCase();
       const matchesSearch = !q ||
         item.name.toLowerCase().includes(q) ||
         item.location.toLowerCase().includes(q) ||
         item.foundAt.toLowerCase().includes(q);
       const matchesLocation = !filterLocation || item.location.toLowerCase().includes(filterLocation.toLowerCase());
-      const matchesCountdown = !filterCountdown || getDaysInfo(item.dateFound).countdownStatus === filterCountdown;
+      const matchesCountdown = !filterCountdown || getDaysInfo(item.foundAt).countdownStatus === filterCountdown;
       return matchesSearch && matchesLocation && matchesCountdown;
     })
     .sort((a, b) => parseDateTime(b.foundAt) - parseDateTime(a.foundAt));
@@ -3498,7 +3498,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
       </div>
 
       {/* Countdown Summary Cards */}
-      <CountdownSummaryCards items={items as Array<Record<string, string>>} dateField="dateFound" />
+      <CountdownSummaryCards items={items as Array<Record<string, string>>} dateField="foundAt" />
 
       {/* Search and Filters */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
@@ -3588,7 +3588,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
                     <span className="truncate block">{item.location}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <CountdownChip dateStr={item.dateFound} />
+                    <CountdownChip dateStr={item.foundAt} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

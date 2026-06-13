@@ -103,7 +103,7 @@ export class FoundItemService {
     // Add countdown info
     const itemsWithCountdown = items.map((item) => ({
       ...item.toObject(),
-      countdownInfo: getCountdownInfo(item.dateFound),
+      countdownInfo: getCountdownInfo(item.foundAt || item.dateFound),
     }));
 
     return {
@@ -127,7 +127,7 @@ export class FoundItemService {
 
     return {
       ...item.toObject(),
-      countdownInfo: getCountdownInfo(item.dateFound),
+      countdownInfo: getCountdownInfo(item.foundAt || item.dateFound),
     };
   }
 
@@ -190,7 +190,7 @@ export class FoundItemService {
       status: ITEM_STATUS.NOT_RETURNED,
     });
 
-    return items.filter((item) => isItemExpired(item.dateFound));
+    return items.filter((item) => isItemExpired(item.foundAt || item.dateFound));
   }
 
   static async getAdminItems(

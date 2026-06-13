@@ -46,11 +46,11 @@ export function isItemExpired(dateReported: Date): boolean {
   return isExpired;
 }
 
-export function getExpiredItems<T extends { dateLost?: Date; dateFound?: Date }>(
+export function getExpiredItems<T extends { reportedAt?: Date; foundAt?: Date; createdAt?: Date; dateLost?: Date; dateFound?: Date }>(
   items: T[]
 ): T[] {
   return items.filter((item) => {
-    const dateToCheck = item.dateLost || item.dateFound;
+    const dateToCheck = item.reportedAt || item.foundAt || item.createdAt || item.dateLost || item.dateFound;
     return dateToCheck && isItemExpired(dateToCheck);
   });
 }
