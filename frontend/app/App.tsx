@@ -1952,6 +1952,7 @@ function ItemHistoryPage({
   const [filterType, setFilterType] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [dateError, setDateError] = useState<string | null>(null);
 
   // Dedicated stable statistics state:
   const [statistics, setStatistics] = useState<{
@@ -1981,6 +1982,7 @@ function ItemHistoryPage({
     let active = true;
     const loadData = async () => {
       if (isLoggingOut) return;
+      if (dateError) return;
       // On initial mount, load all datasets so statistics counts are fully populated.
       if (isInitialMount.current) {
         setIsStatsLoading(true);
@@ -2103,19 +2105,20 @@ function ItemHistoryPage({
     return () => {
       active = false;
     };
-  }, [activeTab, isLoggingOut]);
+  }, [activeTab, isLoggingOut, dateError]);
 
   useEffect(() => {
     setIsFiltering(true);
     const handler = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setDebouncedDateTo(dateTo);
+      const isDateValid = !dateError && (!dateTo || dateTo.length === 10);
+      setDebouncedDateTo(isDateValid ? dateTo : "");
       setDebouncedFilterType(filterType);
       setIsFiltering(false);
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchTerm, dateTo, filterType]);
+  }, [searchTerm, dateTo, filterType, dateError]);
 
   // Returned records come from the backend history endpoint plus current returned records.
   const returnedItems = [
@@ -2274,20 +2277,56 @@ function ItemHistoryPage({
               <option value="Found">Found Items</option>
             </select>
           )}
-          <div className="relative">
-            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input type="date" value={dateTo}
-              max={getTodayDateString()}
-              onChange={e => {
-                const val = e.target.value;
-                if (val && val > getTodayDateString()) return;
-                setDateTo(val);
-              }}
-              className={inputCls + " pl-9"} style={{ fontFamily: "DM Sans, sans-serif" }} />
+          <div className="relative flex flex-col justify-center">
+            <div className="relative">
+              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input type="date" value={dateTo}
+                min={get30DaysAgoDateString()}
+                max={getTodayDateString()}
+                onChange={e => {
+                  const val = e.target.value;
+                  const validity = e.target.validity;
+                  if (!val && !validity.badInput) {
+                    setDateTo("");
+                    setDateError(null);
+                    return;
+                  }
+                  if (val && val.length === 10) {
+                    if (val >= get30DaysAgoDateString() && val <= getTodayDateString()) {
+                      setDateTo(val);
+                      setDateError(null);
+                    } else {
+                      setDateTo("");
+                      setDateError("Please select a date within the last 30 days.");
+                    }
+                  } else {
+                    setDateTo(val);
+                  }
+                }}
+                onBlur={e => {
+                  const val = e.target.value;
+                  const validity = e.target.validity;
+                  if (validity.badInput || !val || val.length !== 10 || val < get30DaysAgoDateString() || val > getTodayDateString()) {
+                    if (!val && !validity.badInput) {
+                      setDateTo("");
+                      setDateError(null);
+                    } else {
+                      setDateTo("");
+                      setDateError("Please select a date within the last 30 days.");
+                    }
+                  }
+                }}
+                className={inputCls + " pl-9"} style={{ fontFamily: "DM Sans, sans-serif" }} />
+            </div>
+            {dateError && (
+              <p className="text-red-500 text-[10px] mt-1 font-medium animate-fade-in" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                {dateError}
+              </p>
+            )}
           </div>
         </div>
-        {(searchTerm || filterType || dateFrom || dateTo) && (
-          <button onClick={() => { setSearchTerm(""); setFilterType(""); setDateFrom(""); setDateTo(""); }}
+        {(searchTerm || filterType || dateFrom || dateTo || dateError) && (
+          <button onClick={() => { setSearchTerm(""); setFilterType(""); setDateFrom(""); setDateTo(""); setDateError(null); }}
             className="mt-2 text-xs text-cyan-600 hover:underline font-medium" style={{ fontFamily: "DM Sans, sans-serif" }}>
             Clear filters
           </button>
