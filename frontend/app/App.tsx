@@ -3554,7 +3554,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["Name", "Found Date & Time", "Location", "Days Left", "Return"].map(h => (
+                {["Name", "Found Date", "Location", "Days Left", "Return"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-gray-600 font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
                 ))}
               </tr>
