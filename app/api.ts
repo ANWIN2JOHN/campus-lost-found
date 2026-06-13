@@ -191,11 +191,20 @@ async function fetchJson(
     },
   });
 
+  const data = await response.json().catch(() => null);
+
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+    const err = new Error(
+      data?.message ||
+      `Request failed: ${response.status} ${response.statusText}`
+    );
+    if (data?.details) {
+      (err as any).details = data.details;
+    }
+    throw err;
   }
 
-  return response.json();
+  return data;
 }
 
 async function fetchBrowseItemsFromBackend(type: "lost" | "found", query: Record<string, string | undefined>): Promise<BrowseItem[]> {
@@ -252,8 +261,8 @@ export async function getHistory(): Promise<{
   try {
     const payload = await fetchJson("/api/history", { limit: "1000" });
     const data = payload?.data ?? payload;
-    const returnedItems = data?.returned ?? data?.claimed ?? data?.["claimed" + "Items"] ?? [];
-    const disposedItems = data?.disposed ?? data?.disposedItems ?? [];
+    const returnedItems = data?.returned ?? data?.claimed ?? data?.["claimed" + "Items"];
+    const disposedItems = data?.disposed ?? data?.disposedItems;
 
     if (Array.isArray(returnedItems) || Array.isArray(disposedItems)) {
       return {

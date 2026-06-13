@@ -10,10 +10,34 @@ interface LandingPageProps {
 }
 
 
-function StatRing({ pct, color, label }: { pct: number; color: string; label: string }) {
+function StatRing({ pct, color, label, animate }: { pct: number; color: string; label: string; animate: boolean }) {
   const r = 22;
   const circ = 2 * Math.PI * r;
-  const dash = (pct / 100) * circ;
+  const [currentPct, setCurrentPct] = useState(0);
+
+  useEffect(() => {
+    if (!animate) return;
+    let startTimestamp: number | null = null;
+    const duration = 1000;
+    const startVal = 0;
+    const endVal = pct;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      setCurrentPct(progress * (endVal - startVal) + startVal);
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+
+    window.requestAnimationFrame(step);
+  }, [pct, animate]);
+
+  const renderPct = animate ? currentPct : pct;
+  const dash = (renderPct / 100) * circ;
+  const displayLabel = label.endsWith("%") && animate ? `${Math.round(renderPct)}%` : label;
+
   return (
     <div className="relative shrink-0" style={{ width: 56, height: 56 }}>
       <svg width="56" height="56" style={{ transform: "rotate(-90deg)" }}>
@@ -23,10 +47,35 @@ function StatRing({ pct, color, label }: { pct: number; color: string; label: st
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
         style={{ color, fontFamily: "DM Sans, sans-serif" }}>
-        {label}
+        {displayLabel}
       </span>
     </div>
   );
+}
+
+function AnimatedCounter({ value, animate }: { value: number; animate: boolean }) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!animate) return;
+    let startTimestamp: number | null = null;
+    const duration = 1000;
+    const startVal = 0;
+    const endVal = value;
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      setCount(Math.floor(progress * (endVal - startVal) + startVal));
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+
+    window.requestAnimationFrame(step);
+  }, [value, animate]);
+
+  return <>{animate ? count : value}</>;
 }
 
 
@@ -39,63 +88,58 @@ const howItWorks = [
 
 export default function LandingPage({ onBrowseFound, onAdminLogin }: LandingPageProps) {
   const [stats, setStats] = useState({
-  total: 0,
-  lost: 0,
-  found: 0,
-  returned: 0,
-});
-const [statsLoading, setStatsLoading] = useState(true);
+    total: 0,
+    lost: 0,
+    found: 0,
+    returned: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [animateStats, setAnimateStats] = useState(false);
+  const statsContainerRef = useRef<HTMLDivElement>(null);
 
-useEffect(() => {
-  if (sessionStorage.getItem("justLoggedOut") === "true") {
-    sessionStorage.removeItem("justLoggedOut");
-    setStatsLoading(false);
-    return;
-  }
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setAnimateStats(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
 
-  Promise.all([
-    fetch(
-      "https://campus-lost-found-ghvc.onrender.com/api/items/lost?limit=1000&status=Not%20Returned"
-    ).then(r => r.json()),
+    if (statsContainerRef.current) {
+      observer.observe(statsContainerRef.current);
+    }
 
-    fetch(
-      "https://campus-lost-found-ghvc.onrender.com/api/items/found?limit=1000&status=Not%20Returned"
-    ).then(r => r.json()),
+    return () => observer.disconnect();
+  }, [statsLoading]);
 
-    fetch(
-      "https://campus-lost-found-ghvc.onrender.com/api/items/lost?limit=1000&status=Returned"
-    ).then(r => r.json()),
+  useEffect(() => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://campus-lost-found-ghvc.onrender.com";
 
-    fetch(
-      "https://campus-lost-found-ghvc.onrender.com/api/items/found?limit=1000&status=Returned"
-    ).then(r => r.json()),
-  ])
-    .then(([lostActive, foundActive, lostReturned, foundReturned]) => {
-      const lostItems = lostActive?.data?.data || [];
-      const foundItems = foundActive?.data?.data || [];
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/items/lost?limit=1000&status=Not%20Returned`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/api/items/found?limit=1000&status=Not%20Returned`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/api/items/lost?limit=1000&status=Returned`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/api/items/found?limit=1000&status=Returned`).then(r => r.json()),
+    ])
+      .then(([lostActive, foundActive, lostReturned, foundReturned]) => {
+        const lostActiveTotal = lostActive?.data?.total ?? lostActive?.data?.data?.length ?? 0;
+        const foundActiveTotal = foundActive?.data?.total ?? foundActive?.data?.data?.length ?? 0;
+        const lostReturnedTotal = lostReturned?.data?.total ?? lostReturned?.data?.data?.length ?? 0;
+        const foundReturnedTotal = foundReturned?.data?.total ?? foundReturned?.data?.data?.length ?? 0;
 
-      const returnedLost = lostReturned?.data?.data || [];
-      const returnedFound = foundReturned?.data?.data || [];
-
-      setStats({
-        total:
-          lostItems.length +
-          foundItems.length +
-          returnedLost.length +
-          returnedFound.length,
-
-        lost: lostItems.length + returnedLost.length,
-
-        found: foundItems.length + returnedFound.length,
-
-        returned:
-          returnedLost.length +
-          returnedFound.length,
-      });
-    })
-    .catch(console.error)
-    .finally(() => setStatsLoading(false));
-}, []);
+        setStats({
+          total: lostActiveTotal + foundActiveTotal + lostReturnedTotal + foundReturnedTotal,
+          lost: lostActiveTotal + lostReturnedTotal,
+          found: foundActiveTotal + foundReturnedTotal,
+          returned: lostReturnedTotal + foundReturnedTotal,
+        });
+      })
+      .catch(console.error)
+      .finally(() => setStatsLoading(false));
+  }, []);
 
 const TOTAL = stats.total;
 const LOST = stats.lost;
@@ -107,10 +151,10 @@ const FOUND_PCT = TOTAL ? Math.round((FOUND / TOTAL) * 100) : 0;
 const RETURN_RATE = TOTAL ? Math.round((RETURNED / TOTAL) * 100) : 0;
 
 const overviewStats = [
-  { ring: <StatRing pct={100} color="#0891b2" label="ALL" />, value: TOTAL, label: "Total Reported", labelColor: "text-slate-700", border: "border-slate-200" },
-  { ring: <StatRing pct={LOST_PCT} color="#f59e0b" label={`${LOST_PCT}%`} />, value: LOST, label: "Lost Items", labelColor: "text-amber-500", border: "border-amber-200" },
-  { ring: <StatRing pct={FOUND_PCT} color="#10b981" label={`${FOUND_PCT}%`} />, value: FOUND, label: "Found Items", labelColor: "text-emerald-500", border: "border-emerald-200" },
-  { ring: <StatRing pct={RETURN_RATE} color="#8b5cf6" label={`${RETURN_RATE}%`} />, value: RETURNED, label: "Returned", labelColor: "text-violet-500", border: "border-violet-200" },
+  { ring: <StatRing pct={100} color="#0891b2" label="ALL" animate={animateStats} />, value: <AnimatedCounter value={TOTAL} animate={animateStats} />, label: "Total Reported", labelColor: "text-slate-700", border: "border-slate-200" },
+  { ring: <StatRing pct={LOST_PCT} color="#f59e0b" label={`${LOST_PCT}%`} animate={animateStats} />, value: <AnimatedCounter value={LOST} animate={animateStats} />, label: "Lost Items", labelColor: "text-amber-500", border: "border-amber-200" },
+  { ring: <StatRing pct={FOUND_PCT} color="#10b981" label={`${FOUND_PCT}%`} animate={animateStats} />, value: <AnimatedCounter value={FOUND} animate={animateStats} />, label: "Found Items", labelColor: "text-emerald-500", border: "border-emerald-200" },
+  { ring: <StatRing pct={RETURN_RATE} color="#8b5cf6" label={`${RETURN_RATE}%`} animate={animateStats} />, value: <AnimatedCounter value={RETURNED} animate={animateStats} />, label: "Returned", labelColor: "text-violet-500", border: "border-violet-200" },
 ];
   const statsRef = useRef<HTMLDivElement>(null);
 
@@ -198,7 +242,7 @@ const overviewStats = [
                   <div className="flex-1 h-px bg-gradient-to-r from-slate-200 to-transparent" />
                   <span className="text-slate-400 text-xs shrink-0" style={{ fontFamily: "DM Sans, sans-serif" }}>Live statistics</span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3" ref={statsContainerRef}>
                   {statsLoading ? (
                     // Skeleton placeholders — same dimensions as real cards
                     Array.from({ length: 4 }).map((_, i) => (

@@ -37,6 +37,15 @@ function getTodayDateString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function get30DaysAgoDateString(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // ─── Input Validation Helpers ───────────────────────────────────────────────
 function validateEmail(email: string): string | null {
   const trimmed = email.trim();
@@ -253,14 +262,14 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "location": {
         const label = isLost ? "Last Seen Location" : "Location Found";
         if (!trimmed) return `${label} is required.`;
-        if (isLost && trimmed.length < 2) return `${label} must be at least 15 characters.`;
+        if (isLost && trimmed.length < 15) return `${label} must be at least 15 characters.`;
         if (!isLost && trimmed.length < 10) return `${label} must be at least 10 characters.`;
         if (trimmed.length > 100) return `${label} must not exceed 100 characters.`;
         return null;
       }
       case "description":
         if (!trimmed) return "Description is required.";
-        if (isLost && trimmed.length < 10) return "Description must be at least 15 characters.";
+        if (isLost && trimmed.length < 15) return "Description must be at least 15 characters.";
         if (!isLost && trimmed.length < 15) return "Description must be at least 15 characters.";
         if (trimmed.length > 1000) return "Description must not exceed 1000 characters.";
         return null;
@@ -277,7 +286,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "studentName":
         if (isStudent) {
           if (!trimmed) return "Student Name is required.";
-          if (isLost && trimmed.length < 2) return "Student Name must be at least 12 characters.";
+          if (isLost && trimmed.length < 12) return "Student Name must be at least 12 characters.";
           if (!isLost && trimmed.length < 15) return "Student Name must be at least 15 characters.";
           if (trimmed.length > 100) return "Student Name must not exceed 100 characters.";
           if (/^[0-9]+$/.test(trimmed)) return "Student Name cannot be numbers only.";
@@ -315,7 +324,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "staffName":
         if (!isStudent) {
           if (!trimmed) return "Staff Name is required.";
-          if (isLost && trimmed.length < 2) return "Staff Name must be at least 12 characters.";
+          if (isLost && trimmed.length < 12) return "Staff Name must be at least 12 characters.";
           if (!isLost && trimmed.length < 10) return "Staff Name must be at least 10 characters.";
           if (trimmed.length > 100) return "Staff Name must not exceed 100 characters.";
           if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Staff Name can only contain letters, spaces, hyphens, and apostrophes.";
@@ -332,7 +341,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "department":
         if (!isStudent) {
           if (!trimmed) return "Department is required.";
-          if (isLost && trimmed.length < 2) return "Department must be at least 10 characters.";
+          if (isLost && trimmed.length < 10) return "Department must be at least 10 characters.";
           if (!isLost && trimmed.length < 10) return "Department must be at least 10 characters.";
           if (trimmed.length > 100) return "Department must not exceed 100 characters.";
         }
@@ -363,6 +372,13 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "date":
         if (!value) return `${isLost ? "Date Lost" : "Date Found"} is required.`;
         if (value > getTodayDateString()) return `${isLost ? "Date Lost" : "Date Found"} cannot be in the future.`;
+        if (isLost) {
+          const minDateStr = get30DaysAgoDateString();
+          if (value < minDateStr) {
+            return "Date Lost cannot be older than 30 days.";
+          }
+        }
+        return null;
         return null;
       default:
         return null;
@@ -563,11 +579,44 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       });
       await onItemCreated?.(itemType);
       setSubmitted(true);
-    } catch (error) {
-      toast.error("Unable to report item", {
-        description: error instanceof Error ? error.message : "Please check the Render API connection.",
-        duration: 4500,
-      });
+    } catch (error: any) {
+      if (error.details && Array.isArray(error.details)) {
+        const backendErrors: Record<string, string> = {};
+        error.details.forEach((det: any) => {
+          let fieldKey = det.field;
+          if (fieldKey === "studentPhone" || fieldKey === "staffPhone") {
+            fieldKey = isStudent ? "phone" : "staffPhone";
+          } else if (fieldKey === "studentEmail" || fieldKey === "staffEmail") {
+            fieldKey = isStudent ? "email" : "staffEmail";
+          } else if (fieldKey === "dateLost") {
+            fieldKey = "date";
+          }
+          backendErrors[fieldKey] = det.message;
+        });
+        setErrors(backendErrors);
+        
+        const domOrder = [
+          "name", "location", "date", "collectFrom", "description", "category", "customCategory",
+          isStudent ? "studentName" : "staffName",
+          isStudent ? "rollNo" : "employeeId",
+          !isStudent && "department",
+          isStudent ? "phone" : "staffPhone",
+          isStudent ? "email" : "staffEmail",
+        ].filter(Boolean) as string[];
+        const firstErrorKey = domOrder.find(k => backendErrors[k]);
+        if (firstErrorKey) {
+          const element = document.getElementById(firstErrorKey);
+          if (element) {
+            element.focus();
+            element.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+      } else {
+        toast.error("Unable to report item", {
+          description: error instanceof Error ? error.message : "Please check the Render API connection.",
+          duration: 4500,
+        });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -791,6 +840,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
                       id="date"
                       type="date"
                       value={form.date}
+                      min={isLost ? get30DaysAgoDateString() : undefined}
                       max={getTodayDateString()}
                       onChange={set("date")}
                       onBlur={() => handleBlur("date")}
@@ -4144,6 +4194,26 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   };
 
   const renderMain = () => {
+    if (isLoggingOut) {
+      return (
+        <div className="flex-1 overflow-y-auto px-5 py-4 bg-gray-50 space-y-4">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 bg-gray-200 rounded-xl"></div>
+              ))}
+            </div>
+            <div className="h-10 bg-gray-200 rounded-lg w-full"></div>
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-12 bg-gray-200 rounded-lg w-full"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
     if (activeNav === "upload-item") {
       return <UploadPage onBack={() => setActiveNav("lost-items")} onItemCreated={handleItemCreated} />;
     }

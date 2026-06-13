@@ -61,12 +61,22 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
     try {
       await loginAdmin(trimmedEmail, trimmedPassword);
       onLogin("admin");
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Invalid admin credentials"
-      );
+    } catch (error: any) {
+      if (error.details && Array.isArray(error.details)) {
+        error.details.forEach((det: any) => {
+          if (det.field === "email") {
+            setEmailError(det.message);
+          } else if (det.field === "password") {
+            setPasswordError(det.message);
+          }
+        });
+      } else {
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Invalid admin credentials"
+        );
+      }
     } finally {
       setIsLoading(false);
     }
