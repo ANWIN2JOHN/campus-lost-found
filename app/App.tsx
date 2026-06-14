@@ -4650,8 +4650,12 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const handleItemCreated = async (type: "lost" | "found") => {
     if (type === "lost") {
       setLostIsStale(true);
+      setActiveNav("lost-items");
+      toast.success("Item reported successfully!");
     } else {
       setFoundIsStale(true);
+      setActiveNav("found-items");
+      toast.success("Item reported successfully!");
     }
   };
 
