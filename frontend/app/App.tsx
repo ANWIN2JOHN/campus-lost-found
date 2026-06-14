@@ -1618,11 +1618,10 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
                   handleDateChange("");
                 }
               }}
-              className={`w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 transition-all ${
-                dateError
-                  ? "border-red-400 focus:border-red-400 focus:ring-red-400/15"
-                  : "border-[#E5E7EB] focus:border-[#0891B2] focus:ring-[#0891B2]/15"
-              }`}
+              className={`w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 transition-all ${dateError
+                ? "border-red-400 focus:border-red-400 focus:ring-red-400/15"
+                : "border-[#E5E7EB] focus:border-[#0891B2] focus:ring-[#0891B2]/15"
+                }`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
             {dateError && (
@@ -3367,7 +3366,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name, location, reporter, or date…"
+              placeholder="Search by item name, reporter…"
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
@@ -3742,7 +3741,7 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name, location, or date…"
+              placeholder="Search by itemname, date…"
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
