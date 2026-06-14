@@ -2652,6 +2652,71 @@ function ItemHistoryPage({
 
 const SOCIAL_CLUBS = ["NSS", "KCDC", "NCC", "Other"];
 
+// ─── Synonym map for intelligent Expired Items search ─────────────────
+const EXPIRED_ITEM_SYNONYMS: Record<string, string[]> = {
+  bag: ["backpack", "sack", "pouch", "tote", "knapsack", "haversack", "bagpack", "school bag", "travel bag", "handbag", "satchel", "kit bag", "gym bag", "skybag", "laptop bag", "duffle", "duffel", "leather bag"],
+  backpack: ["bag", "school bag", "travel bag", "knapsack", "haversack", "bagpack", "rucksack", "skybag", "campus bag"],
+  phone: ["mobile", "cell", "smartphone", "handphone", "iphone", "android", "cellphone", "handset"],
+  mobile: ["phone", "cell", "smartphone", "handphone", "iphone", "android", "cellphone"],
+  wallet: ["purse", "billfold", "card holder", "money clip"],
+  bottle: ["water bottle", "flask", "tumbler", "sipper", "thermos", "canteen"],
+  "water bottle": ["bottle", "flask", "tumbler", "sipper"],
+  glasses: ["spectacles", "specs", "eyeglasses", "sunglasses", "shades", "goggles", "reading glasses", "frames"],
+  spectacles: ["glasses", "specs", "eyeglasses", "frames"],
+  keys: ["key", "keychain", "key ring", "keyring", "locket", "lanyard key"],
+  key: ["keys", "keychain", "key ring", "keyring"],
+  charger: ["adapter", "cable", "power adapter", "charging cable", "plug"],
+  earphones: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds"],
+  headphones: ["earphones", "earbuds", "headset", "over-ear"],
+  umbrella: ["raincoat", "rain cover"],
+  book: ["notebook", "textbook", "notes", "journal", "diary", "workbook"],
+  notebook: ["book", "notes", "journal", "copy", "notepad"],
+  pen: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter"],
+  pencil: ["pen", "eraser", "sketch"],
+  calculator: ["calc", "scientific calculator"],
+  laptop: ["computer", "pc", "macbook", "notebook computer", "chromebook"],
+  watch: ["wristwatch", "timepiece", "clock", "smartwatch"],
+  id: ["id card", "identity card", "student id", "college id", "college card", "access card", "pass"],
+  "id card": ["identity card", "student id", "college card", "access card", "id"],
+  earring: ["earrings", "stud", "hoop", "jewelry"],
+  necklace: ["chain", "pendant", "locket", "jewelry"],
+  ring: ["band", "finger ring", "jewelry"],
+  bracelet: ["bangle", "wristband", "jewelry"],
+};
+
+/** Expand a query word to all synonym terms (including itself). */
+function getExpiredSynonymTerms(word: string): string[] {
+  const lower = word.toLowerCase();
+  const synonyms = EXPIRED_ITEM_SYNONYMS[lower] || [];
+  const reverseMatches = Object.entries(EXPIRED_ITEM_SYNONYMS)
+    .filter(([, syns]) => syns.some(s => s.toLowerCase() === lower))
+    .map(([key]) => key);
+  return [lower, ...synonyms.map(s => s.toLowerCase()), ...reverseMatches];
+}
+
+/** Intelligent multi-strategy name search for expired items: partial, keyword, synonym. */
+function matchesExpiredSearch(name: string, query: string): boolean {
+  if (!query) return true;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const haystack = name.toLowerCase();
+
+  // 1. Partial match
+  if (haystack.includes(q)) return true;
+
+  // 2. Keyword match: all words in query appear in the name
+  const queryWords = q.split(/\s+/).filter(Boolean);
+  if (queryWords.length > 1 && queryWords.every(w => haystack.includes(w))) return true;
+
+  // 3. Synonym match
+  for (const word of queryWords) {
+    const terms = getExpiredSynonymTerms(word);
+    if (terms.some(term => haystack.includes(term))) return true;
+  }
+
+  return false;
+}
+
 function ExpiredItemsPage({
   foundAdminRecords, lostAdminRecords, setFoundAdminRecords, setLostAdminRecords, onDispose,
 }: {
@@ -2676,14 +2741,46 @@ function ExpiredItemsPage({
   const [notes, setNotes] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const expiredFoundRecords = foundAdminRecords
-    .filter(i => i.status === "Not Returned" && getDaysInfo(i.foundAt).isExpired)
-    .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.dateFound, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.foundAt).daysElapsed }));
+  // Debounced effective search — only activated at ≥3 chars or when cleared
+  const [activeSearch, setActiveSearch] = useState("");
+  const [searchHint, setSearchHint] = useState<string | null>(null);
+  const prevSearchRef = useRef("");
 
-  const searchQuery = searchTerm.trim().toLowerCase();
-  const allExpired = expiredFoundRecords
-    .filter(i => searchQuery.length < 4 || i.name.toLowerCase().includes(searchQuery))
-    .sort((a, b) => b.daysElapsed - a.daysElapsed);
+  useEffect(() => {
+    const trimmed = searchTerm.trim();
+    if (trimmed.length === 0) {
+      setSearchHint(null);
+      const t = setTimeout(() => {
+        if (prevSearchRef.current !== "") { prevSearchRef.current = ""; setActiveSearch(""); }
+      }, 400);
+      return () => clearTimeout(t);
+    }
+    if (trimmed.length < 3) {
+      setSearchHint("Enter at least 3 characters to search.");
+      return;
+    }
+    setSearchHint(null);
+    const t = setTimeout(() => {
+      if (prevSearchRef.current !== trimmed) { prevSearchRef.current = trimmed; setActiveSearch(trimmed); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Statistics: always derived from the full expired dataset — never affected by search
+  const expiredFoundRecords = useMemo(() =>
+    foundAdminRecords
+      .filter(i => i.status === "Not Returned" && getDaysInfo(i.foundAt).isExpired)
+      .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.dateFound, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.foundAt).daysElapsed })),
+    [foundAdminRecords]
+  );
+
+  // Filtered + sorted items — newest first (lowest daysElapsed = most recently expired)
+  const allExpired = useMemo(() =>
+    expiredFoundRecords
+      .filter(i => matchesExpiredSearch(i.name, activeSearch))
+      .sort((a, b) => a.daysElapsed - b.daysElapsed),
+    [expiredFoundRecords, activeSearch]
+  );
 
   const openModal = (item: typeof allExpired[0]) => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -2792,6 +2889,9 @@ function ExpiredItemsPage({
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
               style={{ fontFamily: "DM Sans, sans-serif" }} />
+            {searchHint && (
+              <p className="absolute left-0 top-full mt-1 text-xs text-amber-500 z-10" style={{ fontFamily: "DM Sans, sans-serif" }}>{searchHint}</p>
+            )}
           </div>
         </div>
         <p className="text-xs text-gray-400 mt-2" style={{ fontFamily: "DM Sans, sans-serif" }}>{allExpired.length} expired item{allExpired.length !== 1 ? "s" : ""} awaiting disposal</p>
@@ -3414,7 +3514,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["ITEMName", "Lost Date", "Location", "Reporter", "Days Left", "Return"].map(h => (
+                {["ITEM Name", "Lost Date", "Location", "Reporter", "Days Left", "Return"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-gray-600 font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
                 ))}
               </tr>
