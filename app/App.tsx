@@ -2264,41 +2264,7 @@ function ItemHistoryPage({
     return dateFilteredDisposed.filter(r => {
       return !activeSearch || matchesHistorySearch(r.name, r.location, activeSearch);
     });
-  }, [dateFilteredDisposed, activeSearch]);sedDate, debouncedDateTo);
-    return matchesType && matchesDate;
-  });
-  const filteredReturned = isSearchActive
-    ? dateAndTypeFilteredReturned.filter(r => {
-      const qStr = debouncedSearchTerm.trim().toLowerCase();
-      return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
-    })
-    : dateAndTypeFilteredReturned;
-
-  // Lost & Not Found: lost items that expired (60+ days) and were never returned
-  const lostNotFoundRecords = localNotReturnedLostRecords
-    .filter(i => getDaysInfo(i.reportedAt).isExpired)
-    .map(i => ({
-      id: i.id, name: i.name, reportedDate: i.reportedAt,
-      location: i.location, reporter: i.reporterName,
-      reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
-      daysElapsed: getDaysInfo(i.reportedAt).daysElapsed,
-    }));
-
-  const dateFilteredLostNotFound = lostNotFoundRecords.filter(r => matchesExactDate(r.reportedDate, debouncedDateTo));
-  const filteredLostNotFound = isSearchActive
-    ? dateFilteredLostNotFound.filter(r => {
-      const qStr = debouncedSearchTerm.trim().toLowerCase();
-      return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
-    })
-    : dateFilteredLostNotFound;
-
-  const dateFilteredDisposed = localDisposedHistory.filter(r => matchesExactDate(r.disposedDate, debouncedDateTo));
-  const filteredDisposed = isSearchActive
-    ? dateFilteredDisposed.filter(r => {
-      const qStr = debouncedSearchTerm.trim().toLowerCase();
-      return r.name.toLowerCase().includes(qStr) || r.location.toLowerCase().includes(qStr);
-    })
-    : dateFilteredDisposed;
+  }, [dateFilteredDisposed, activeSearch]);
 
   const inputCls = "w-full bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/15 transition-all py-2.5";
 
