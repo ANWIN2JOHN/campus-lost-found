@@ -1205,6 +1205,85 @@ function PublicBrowseView({ type, onBack }: { type: "lost" | "found"; onBack: ()
 
 const BROWSE_PAGE_SIZE = 6;
 
+// ─── Synonym map for intelligent item name matching ────────────────────────
+const ITEM_SYNONYMS: Record<string, string[]> = {
+  bag: ["backpack", "sack", "pouch", "tote", "knapsack", "haversack", "bagpack", "school bag", "travel bag", "handbag", "satchel", "kit bag", "gym bag", "skybag", "laptop bag", "duffle", "duffel"],
+  backpack: ["bag", "school bag", "travel bag", "knapsack", "haversack", "bagpack", "rucksack", "skybag", "campus bag"],
+  phone: ["mobile", "cell", "smartphone", "handphone", "iphone", "android", "cellphone", "handset"],
+  mobile: ["phone", "cell", "smartphone", "handphone", "iphone", "android", "cellphone"],
+  wallet: ["purse", "billfold", "card holder", "money clip"],
+  bottle: ["water bottle", "flask", "tumbler", "sipper", "thermos", "canteen"],
+  "water bottle": ["bottle", "flask", "tumbler", "sipper"],
+  glasses: ["spectacles", "specs", "eyeglasses", "sunglasses", "shades", "goggles", "reading glasses", "frames"],
+  spectacles: ["glasses", "specs", "eyeglasses", "frames"],
+  keys: ["key", "keychain", "key ring", "keyring", "locket", "lanyard key"],
+  key: ["keys", "keychain", "key ring", "keyring"],
+  charger: ["adapter", "cable", "power adapter", "charging cable", "plug"],
+  earphones: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds"],
+  headphones: ["earphones", "earbuds", "headset", "over-ear"],
+  umbrella: ["raincoat", "rain cover"],
+  book: ["notebook", "textbook", "notes", "journal", "diary", "workbook"],
+  notebook: ["book", "notes", "journal", "copy", "notepad"],
+  pen: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter"],
+  pencil: ["pen", "eraser", "sketch"],
+  calculator: ["calc", "scientific calculator"],
+  laptop: ["computer", "pc", "macbook", "notebook computer", "chromebook"],
+  watch: ["wristwatch", "timepiece", "clock", "smartwatch"],
+  id: ["id card", "identity card", "student id", "college id", "college card", "access card", "pass"],
+  "id card": ["identity card", "student id", "college card", "access card", "id"],
+  earring: ["earrings", "stud", "hoop", "jewelry"],
+  necklace: ["chain", "pendant", "locket", "jewelry"],
+  ring: ["band", "finger ring", "jewelry"],
+  bracelet: ["bangle", "wristband", "jewelry"],
+};
+
+/**
+ * Returns all synonym terms for a query word (including itself).
+ */
+function getSynonymTerms(word: string): string[] {
+  const lower = word.toLowerCase();
+  const synonyms = ITEM_SYNONYMS[lower] || [];
+  // Also check if the word appears as a synonym value in any entry
+  const reverseMatches = Object.entries(ITEM_SYNONYMS)
+    .filter(([, syns]) => syns.some(s => s.toLowerCase() === lower))
+    .map(([key]) => key);
+  return [lower, ...synonyms.map(s => s.toLowerCase()), ...reverseMatches];
+}
+
+/**
+ * Intelligent multi-strategy item name/description matcher.
+ * Strategies: exact, partial, keyword, synonym.
+ */
+function matchesSearch(item: BrowseItem, query: string): boolean {
+  if (!query) return true;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const haystack = [
+    item.name,
+    item.description,
+    item.category,
+  ].join(" ").toLowerCase();
+
+  // 1. Exact match
+  if (haystack === q) return true;
+
+  // 2. Partial/substring match
+  if (haystack.includes(q)) return true;
+
+  // 3. Keyword match: all words in query appear somewhere in haystack
+  const queryWords = q.split(/\s+/).filter(Boolean);
+  if (queryWords.length > 1 && queryWords.every(w => haystack.includes(w))) return true;
+
+  // 4. Synonym matching: expand each query word through synonym map
+  for (const word of queryWords) {
+    const terms = getSynonymTerms(word);
+    if (terms.some(term => haystack.includes(term))) return true;
+  }
+
+  return false;
+}
+
 function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | "lost" | "found" }) {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1215,75 +1294,96 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
   const [locationError, setLocationError] = useState<string | null>(null);
 
   const [selectedCategory, setSelectedCategory] = useState("");
+  // "Others" keyword search — client-side sub-filter for custom category text
+  const [othersKeyword, setOthersKeyword] = useState("");
+
   const [countdownFilter, setCountdownFilter] = useState("");
-  const [dateFromInput, setDateFromInput] = useState(getTodayDateString());
-  const [dateFromQuery, setDateFromQuery] = useState(getTodayDateString());
+  const [dateFromInput, setDateFromInput] = useState("");
+  const [dateFromQuery, setDateFromQuery] = useState("");
+  const [dateError, setDateError] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [backendItems, setBackendItems] = useState<BrowseItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Debounce and validate Search input
+  // Track the previous query key to prevent duplicate API calls
+  const prevQueryKeyRef = useRef<string | null>(null);
+  // AbortController ref for cancelling in-flight requests
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Clear othersKeyword when category changes away from "Others"
+  useEffect(() => {
+    if (selectedCategory !== "Others") {
+      setOthersKeyword("");
+    }
+  }, [selectedCategory]);
+
+  // Debounce and validate Search input — only update debouncedSearch when ≥3 chars
   useEffect(() => {
     const trimmed = searchInput.trim();
     if (trimmed.length === 0) {
       setSearchError(null);
-      const handler = setTimeout(() => {
-        setDebouncedSearch("");
-      }, 400);
+      const handler = setTimeout(() => setDebouncedSearch(""), 500);
       return () => clearTimeout(handler);
     }
-
     if (trimmed.length < 3) {
       setSearchError("Please enter at least 3 characters to search.");
-      const handler = setTimeout(() => {
-        setDebouncedSearch("");
-      }, 400);
-      return () => clearTimeout(handler);
+      // Don't update debouncedSearch — leave previous value to avoid stale API call
+      return;
     }
-
     setSearchError(null);
-    const handler = setTimeout(() => {
-      setDebouncedSearch(trimmed);
-    }, 400);
-
+    const handler = setTimeout(() => setDebouncedSearch(trimmed), 500);
     return () => clearTimeout(handler);
   }, [searchInput]);
 
-  // Debounce and validate Location input
+  // Debounce and validate Location input — only update debouncedLocation when ≥3 chars
   useEffect(() => {
     const trimmed = locationInput.trim();
     if (trimmed.length === 0) {
       setLocationError(null);
-      const handler = setTimeout(() => {
-        setDebouncedLocation("");
-      }, 400);
+      const handler = setTimeout(() => setDebouncedLocation(""), 500);
       return () => clearTimeout(handler);
     }
-
     if (trimmed.length < 3) {
       setLocationError("Please enter at least 3 characters to search.");
-      const handler = setTimeout(() => {
-        setDebouncedLocation("");
-      }, 400);
-      return () => clearTimeout(handler);
+      return;
     }
-
     setLocationError(null);
-    const handler = setTimeout(() => {
-      setDebouncedLocation(trimmed);
-    }, 400);
-
+    const handler = setTimeout(() => setDebouncedLocation(trimmed), 500);
     return () => clearTimeout(handler);
   }, [locationInput]);
 
+  // Fetch items from backend — deduplicated, with AbortController
   useEffect(() => {
+    // Build a stable key to detect truly new queries vs. re-renders
+    const queryKey = JSON.stringify({
+      initialFilter,
+      search: debouncedSearch,
+      category: selectedCategory,
+      location: debouncedLocation,
+      dateFrom: dateFromQuery,
+      dateTo,
+    });
+
+    // Skip if the query hasn't changed
+    if (queryKey === prevQueryKeyRef.current) return;
+    prevQueryKeyRef.current = queryKey;
+
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const fetchItems = async () => {
       setLoadingItems(true);
       setFetchError(null);
 
       try {
+        // Pass category to backend; for "Others" we always send "Others" so the backend
+        // returns the full set of other-category items, then we sub-filter client-side.
         const items = await getBrowseItems(initialFilter, {
           search: debouncedSearch || undefined,
           category: selectedCategory || undefined,
@@ -1292,23 +1392,51 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
           dateTo: dateTo || undefined,
         });
 
-        setBackendItems(items);
+        if (!controller.signal.aborted) {
+          setBackendItems(items);
+        }
       } catch (error: unknown) {
-        setFetchError(error instanceof Error ? error.message : "Unable to load items from the database.");
+        if (!controller.signal.aborted) {
+          setFetchError(error instanceof Error ? error.message : "Unable to load items from the database.");
+        }
       } finally {
-        setLoadingItems(false);
+        if (!controller.signal.aborted) {
+          setLoadingItems(false);
+        }
       }
     };
 
     fetchItems();
+
+    return () => {
+      controller.abort();
+    };
   }, [initialFilter, debouncedSearch, selectedCategory, debouncedLocation, dateFromQuery, dateTo]);
 
+  // Client-side filtering: countdown status + Others keyword + intelligent search synonym matching
   const filteredItems = useMemo(() => {
     return backendItems.filter((item) => {
-      const matchesCountdown = !countdownFilter || getDaysInfo(item.reportedAt || item.date).countdownStatus === countdownFilter;
-      return matchesCountdown;
+      // Countdown status filter
+      const matchesCountdown = !countdownFilter ||
+        getDaysInfo(item.reportedAt || item.date).countdownStatus === countdownFilter;
+      if (!matchesCountdown) return false;
+
+      // "Others" category keyword sub-filter (searches against the displayed category/customCategory text)
+      if (selectedCategory === "Others" && othersKeyword.trim().length >= 1) {
+        const kw = othersKeyword.trim().toLowerCase();
+        const catText = item.category.toLowerCase();
+        if (!catText.includes(kw)) return false;
+      }
+
+      // Client-side intelligent search (synonym + partial + keyword matching)
+      // This supplements the backend search with richer matching.
+      if (debouncedSearch) {
+        if (!matchesSearch(item, debouncedSearch)) return false;
+      }
+
+      return true;
     });
-  }, [backendItems, countdownFilter]);
+  }, [backendItems, countdownFilter, selectedCategory, othersKeyword, debouncedSearch]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredItems.length / BROWSE_PAGE_SIZE)), [filteredItems.length]);
   const safePage = Math.min(currentPage, totalPages);
@@ -1326,6 +1454,49 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
   const pageDescription = initialFilter === "lost"
     ? "Browse all lost items reported across campus."
     : "Browse all found items available for collection across campus.";
+
+  /** Validate and apply a date filter value.
+   *  Accepts: current date or any date within the past 30 days.
+   *  Rejects: future dates, dates older than 30 days, invalid formats.
+   */
+  const handleDateChange = (val: string) => {
+    setDateFromInput(val);
+
+    if (!val) {
+      setDateError(null);
+      setDateFromQuery("");
+      setCurrentPage(1);
+      return;
+    }
+
+    // Must be exactly YYYY-MM-DD and parseable
+    if (val.length !== 10 || isNaN(new Date(val).getTime())) {
+      setDateError("Please select a date within the last 30 days.");
+      setDateFromQuery("");
+      return;
+    }
+
+    const today = getTodayDateString();
+    const thirtyDaysAgo = get30DaysAgoDateString();
+
+    if (val > today) {
+      setDateError("Please select a date within the last 30 days.");
+      setDateFromInput("");
+      setDateFromQuery("");
+      return;
+    }
+
+    if (val < thirtyDaysAgo) {
+      setDateError("Please select a date within the last 30 days.");
+      setDateFromInput("");
+      setDateFromQuery("");
+      return;
+    }
+
+    setDateError(null);
+    setDateFromQuery(val);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -1352,7 +1523,7 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
       {/* ── Search & Filter Bar ─────────────────────────────── */}
       <div className="bg-white border border-[#E5E7EB] rounded-2xl shadow-sm p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {/* Search */}
+          {/* Item Name Search */}
           <div className="relative md:col-span-1">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -1369,7 +1540,8 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
               </p>
             )}
           </div>
-          {/* Location */}
+
+          {/* Location Search */}
           <div className="relative">
             <MapPin size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -1386,7 +1558,8 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
               </p>
             )}
           </div>
-          {/* Category */}
+
+          {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={e => applyCategory(e.target.value)}
@@ -1398,7 +1571,23 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
               <option key={cat.name} value={cat.name}>{cat.name}</option>
             ))}
           </select>
-          {/* Claim status */}
+
+          {/* "Others" keyword search — shown only when Others is selected */}
+          {selectedCategory === "Others" && (
+            <div className="relative md:col-span-1">
+              <Tag size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search within Others (e.g. umbrella, helmet…)"
+                value={othersKeyword}
+                onChange={e => { setOthersKeyword(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-10 pr-4 py-2.5 bg-[#FFF7ED] border border-[#FED7AA] rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 transition-all"
+                style={{ fontFamily: "DM Sans, sans-serif" }}
+              />
+            </div>
+          )}
+
+          {/* Claim Status Filter */}
           <select
             value={countdownFilter}
             onChange={e => applyCountdown(e.target.value)}
@@ -1410,49 +1599,57 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
             <option value="expiring">🟡 Expiring Soon (11–30 days)</option>
             <option value="last10">🔴 Last 10 Days</option>
           </select>
-          {/* Date From */}
+
+          {/* Date Filter — restricted to current date and past 30 days only */}
           <div className="relative">
             <Calendar size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
               type="date"
               value={dateFromInput}
+              min={get30DaysAgoDateString()}
               max={getTodayDateString()}
-              onChange={e => {
+              onChange={e => handleDateChange(e.target.value)}
+              onBlur={e => {
                 const val = e.target.value;
-                setDateFromInput(val);
-                if (!val) {
-                  setDateFromQuery("");
-                  setCurrentPage(1);
-                } else if (val.length === 10 && !isNaN(new Date(val).getTime())) {
-                  if (val > getTodayDateString()) {
-                    toast.error("Invalid Date", {
-                      description: "Future dates are not allowed.",
-                      duration: 3500,
-                    });
-                    return;
-                  }
-                  setDateFromQuery(val);
-                  setCurrentPage(1);
+                if (!val) return;
+                const today = getTodayDateString();
+                const thirtyDaysAgo = get30DaysAgoDateString();
+                if (val > today || val < thirtyDaysAgo || isNaN(new Date(val).getTime())) {
+                  handleDateChange("");
                 }
               }}
-              className="w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all"
+              className={`w-full pl-10 pr-4 py-2.5 bg-[#F5F7FA] border rounded-xl text-sm text-gray-700 focus:outline-none focus:ring-2 transition-all ${
+                dateError
+                  ? "border-red-400 focus:border-red-400 focus:ring-red-400/15"
+                  : "border-[#E5E7EB] focus:border-[#0891B2] focus:ring-[#0891B2]/15"
+              }`}
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
+            {dateError && (
+              <p className="absolute left-0 top-full mt-1 text-xs text-red-500 z-10" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                {dateError}
+              </p>
+            )}
           </div>
         </div>
+
         <div className="mt-3 flex items-center justify-between">
           <p className="text-xs text-gray-400" style={{ fontFamily: "DM Sans, sans-serif" }}>
             <span className="font-semibold text-gray-600">{filteredItems.length}</span> item{filteredItems.length !== 1 ? "s" : ""} found
           </p>
-          {(searchInput || selectedCategory || countdownFilter || locationInput || dateFromQuery || dateTo) && (
+          {(searchInput || selectedCategory || countdownFilter || locationInput || dateFromQuery || dateTo || othersKeyword) && (
             <button
               onClick={() => {
                 setSearchInput("");
+                setDebouncedSearch("");
                 setSelectedCategory("");
+                setOthersKeyword("");
                 setCountdownFilter("");
                 setLocationInput("");
+                setDebouncedLocation("");
                 setDateFromInput("");
                 setDateFromQuery("");
+                setDateError(null);
                 setDateTo("");
                 setCurrentPage(1);
               }}
