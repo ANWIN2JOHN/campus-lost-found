@@ -2967,10 +2967,10 @@ function AdminSidebar({ active, setActive, onLogoutRequest, isOpen, onClose, isL
     {
       label: "ITEMS",
       items: [
+        { id: "upload-item", icon: <Upload size={15} />, label: "Report Item" },
         { id: "lost-items", icon: <AlertCircle size={15} />, label: "Lost Items" },
         { id: "found-items", icon: <CheckSquare size={15} />, label: "Found Items" },
         { id: "expired-items", icon: <Recycle size={15} />, label: "Expired Items" },
-        { id: "upload-item", icon: <Upload size={15} />, label: "Report Item" },
       ],
     },
     {
@@ -4585,6 +4585,10 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
   const [foundIsStale, setFoundIsStale] = useState(true);
 
   const loadNavData = async (nav: string, force = false) => {
+    if (nav !== "lost-items" && nav !== "found-items" && nav !== "expired-items") {
+      return;
+    }
+
     if (!force) {
       if (nav === "lost-items" && !lostIsStale) return;
       if (nav === "found-items" && !foundIsStale) return;
@@ -4794,6 +4798,21 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
 
 export default function App() {
   const [view, setView] = useState<"landing" | "login" | "browse-lost" | "browse-found" | "admin">("landing");
+
+  useEffect(() => {
+    if (view === "admin") {
+      window.history.pushState(null, "", window.location.href);
+      const handlePopState = () => {
+        if (view === "admin") {
+          window.history.pushState(null, "", window.location.href);
+        }
+      };
+      window.addEventListener("popstate", handlePopState);
+      return () => {
+        window.removeEventListener("popstate", handlePopState);
+      };
+    }
+  }, [view]);
 
   const handleBrowseLost = () => {
     setView("browse-lost");
