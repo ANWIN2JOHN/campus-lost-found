@@ -1932,6 +1932,111 @@ function ReturnConfirmModal({
 
 // ─── Item History Page ─────────────────────────────────────────────────────
 
+// ─── Synonym map for intelligent History Page search ─────────────────
+const HISTORY_ITEM_SYNONYMS: Record<string, string[]> = {
+  bag: ["backpack", "sack", "pouch", "tote", "knapsack", "haversack", "bagpack", "school bag", "travel bag", "handbag", "satchel", "kit bag", "gym bag", "skybag", "laptop bag", "duffle", "duffel", "leather bag"],
+  backpack: ["bag", "school bag", "travel bag", "knapsack", "haversack", "bagpack", "rucksack", "skybag", "campus bag"],
+  phone: ["mobile", "cell", "smartphone", "handphone", "iphone", "android", "cellphone", "handset"],
+  mobile: ["phone", "cell", "smartphone", "handphone", "iphone", "android", "cellphone"],
+  wallet: ["purse", "billfold", "card holder", "money clip"],
+  bottle: ["water bottle", "flask", "tumbler", "sipper", "thermos", "canteen"],
+  "water bottle": ["bottle", "flask", "tumbler", "sipper"],
+  glasses: ["spectacles", "specs", "eyeglasses", "sunglasses", "shades", "goggles", "reading glasses", "frames"],
+  spectacles: ["glasses", "specs", "eyeglasses", "frames"],
+  keys: ["key", "keychain", "key ring", "keyring", "locket", "lanyard key"],
+  key: ["keys", "keychain", "key ring", "keyring"],
+  charger: ["adapter", "cable", "power adapter", "charging cable", "plug"],
+  earphones: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds"],
+  headphones: ["earphones", "earbuds", "headset", "over-ear"],
+  umbrella: ["raincoat", "rain cover"],
+  book: ["notebook", "textbook", "notes", "journal", "diary", "workbook"],
+  notebook: ["book", "notes", "journal", "copy", "notepad"],
+  pen: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter"],
+  pencil: ["pen", "eraser", "sketch"],
+  calculator: ["calc", "scientific calculator"],
+  laptop: ["computer", "pc", "macbook", "notebook computer", "chromebook"],
+  watch: ["wristwatch", "timepiece", "clock", "smartwatch"],
+  id: ["id card", "identity card", "student id", "college id", "college card", "access card", "pass"],
+  "id card": ["identity card", "student id", "college card", "access card", "id"],
+  earring: ["earrings", "stud", "hoop", "jewelry"],
+  necklace: ["chain", "pendant", "locket", "jewelry"],
+  ring: ["band", "finger ring", "jewelry"],
+  bracelet: ["bangle", "wristband", "jewelry"],
+};
+
+function getHistorySynonymTerms(word: string): string[] {
+  const lower = word.toLowerCase();
+  const synonyms = HISTORY_ITEM_SYNONYMS[lower] || [];
+  const reverseMatches = Object.entries(HISTORY_ITEM_SYNONYMS)
+    .filter(([, syns]) => syns.some(s => s.toLowerCase() === lower))
+    .map(([key]) => key);
+  return [lower, ...synonyms.map(s => s.toLowerCase()), ...reverseMatches];
+}
+
+function matchesHistorySearch(name: string, location: string, query: string): boolean {
+  if (!query) return true;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const nameLower = name.toLowerCase();
+  const locLower = location.toLowerCase();
+
+  // 1. Exact match
+  if (nameLower === q || locLower === q) return true;
+
+  // 2. Partial match
+  if (nameLower.includes(q) || locLower.includes(q)) return true;
+
+  // 3. Keyword matching: split query into words. Each word must be present in either name or location (or match synonym for name)
+  const queryWords = q.split(/\s+/).filter(Boolean);
+  if (queryWords.length === 0) return true;
+
+  return queryWords.every(word => {
+    if (nameLower.includes(word) || locLower.includes(word)) return true;
+    const terms = getHistorySynonymTerms(word);
+    return terms.some(term => nameLower.includes(term) || locLower.includes(term));
+  });
+}
+
+function parseHistoryDateToMs(dt: string | undefined | null): number {
+  if (!dt) return 0;
+  const parsed = Date.parse(dt);
+  if (!Number.isNaN(parsed)) return parsed;
+
+  const months: Record<string, number> = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
+  const parts = dt.split(", ");
+  const datePart = parts[0];
+  const timePart = parts[1];
+  
+  if (!datePart) return 0;
+  
+  const dateTokens = datePart.split(" ").filter(Boolean);
+  if (dateTokens.length < 3) return 0;
+  
+  const day = Number(dateTokens[0]);
+  const monthStr = dateTokens[1];
+  const year = Number(dateTokens[2]);
+  
+  const month = months[monthStr] !== undefined ? months[monthStr] : 0;
+  
+  let hours = 0;
+  let minutes = 0;
+  
+  if (timePart) {
+    const timeTokens = timePart.split(" ").filter(Boolean);
+    if (timeTokens[0]) {
+      const hm = timeTokens[0].split(":").map(Number);
+      hours = hm[0] || 0;
+      minutes = hm[1] || 0;
+    }
+    const ampm = timeTokens[1];
+    if (ampm === "PM" && hours !== 12) hours += 12;
+    if (ampm === "AM" && hours === 12) hours = 0;
+  }
+  
+  return new Date(year, month, day, hours, minutes).getTime();
+}
+
 function ItemHistoryPage({
   foundAdminRecords,
   lostAdminRecords,
@@ -1970,134 +2075,55 @@ function ItemHistoryPage({
   const [localDisposedHistory, setLocalDisposedHistory] = useState<DisposedRecord[]>([]);
   const [localReturnedHistory, setLocalReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
-  const isInitialMount = useRef(true);
 
   // Debounced filters & Local filtering loading state:
   const [isFiltering, setIsFiltering] = useState(false);
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [activeSearch, setActiveSearch] = useState("");
   const [debouncedDateTo, setDebouncedDateTo] = useState("");
   const [debouncedFilterType, setDebouncedFilterType] = useState("");
+  const [searchHint, setSearchHint] = useState<string | null>(null);
+
+  const prevSearchRef = useRef("");
 
   useEffect(() => {
     let active = true;
     const loadData = async () => {
       if (isLoggingOut) return;
-      if (dateError) return;
-      // On initial mount, load all datasets so statistics counts are fully populated.
-      if (isInitialMount.current) {
-        setIsStatsLoading(true);
-        setIsApiLoading(true);
-        try {
-          const [returnedLost, returnedFound, notReturnedLost, history] = await Promise.all([
-            getAdminLostItems("Returned"),
-            getAdminFoundItems("Returned"),
-            getAdminLostItems("Not Returned"),
-            getHistory(),
-          ]);
-          if (active) {
-            setLocalReturnedLostRecords(returnedLost);
-            setLocalReturnedFoundRecords(returnedFound);
-            setLocalNotReturnedLostRecords(notReturnedLost);
-            setLocalReturnedHistory(history.returned);
-            setLocalDisposedHistory(history.disposed);
+      setIsStatsLoading(true);
+      setIsApiLoading(true);
+      try {
+        const [returnedLost, returnedFound, notReturnedLost, history] = await Promise.all([
+          getAdminLostItems("Returned"),
+          getAdminFoundItems("Returned"),
+          getAdminLostItems("Not Returned"),
+          getHistory(),
+        ]);
+        if (active) {
+          setLocalReturnedLostRecords(returnedLost);
+          setLocalReturnedFoundRecords(returnedFound);
+          setLocalNotReturnedLostRecords(notReturnedLost);
+          setLocalReturnedHistory(history.returned);
+          setLocalDisposedHistory(history.disposed);
 
-            // Compute statistics
-            const totalReturned = history.returned.length + returnedLost.length + returnedFound.length;
-            const lostNotFound = notReturnedLost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
-            const disposedItems = history.disposed.length;
-            const foundReturned = returnedFound.length + history.returned.filter(r => r.type === "Found").length;
+          // Compute statistics
+          const totalReturned = history.returned.length + returnedLost.length + returnedFound.length;
+          const lostNotFound = notReturnedLost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
+          const disposedItems = history.disposed.length;
+          const foundReturned = returnedFound.length + history.returned.filter(r => r.type === "Found").length;
 
-            setStatistics({
-              totalReturned,
-              lostNotFound,
-              disposedItems,
-              foundReturned,
-            });
-
-            isInitialMount.current = false;
-          }
-        } catch (error) {
-          console.error("Failed to load history initial data", error);
-        } finally {
-          if (active) {
-            setIsApiLoading(false);
-            setIsStatsLoading(false);
-          }
+          setStatistics({
+            totalReturned,
+            lostNotFound,
+            disposedItems,
+            foundReturned,
+          });
         }
-      } else {
-        setIsApiLoading(true);
-        // Clear active tab's state immediately on switch to prevent stale flash in table
-        if (activeTab === "lost-not-found") {
-          setLocalNotReturnedLostRecords([]);
-        } else if (activeTab === "disposed") {
-          setLocalDisposedHistory([]);
-        } else if (activeTab === "returned") {
-          setLocalReturnedLostRecords([]);
-          setLocalReturnedFoundRecords([]);
-          setLocalReturnedHistory([]);
-        }
-
-        try {
-          if (activeTab === "lost-not-found") {
-            const lost = await getAdminLostItems("Not Returned");
-            if (active) {
-              setLocalNotReturnedLostRecords(lost);
-
-              // Update stats for lost-not-found
-              const lostNotFound = lost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
-              setStatistics(prev => prev ? { ...prev, lostNotFound } : null);
-            }
-          } else if (activeTab === "disposed") {
-            const history = await getHistory();
-            if (active) {
-              setLocalDisposedHistory(history.disposed);
-              setLocalReturnedHistory(history.returned);
-
-              // Update stats for disposed and returned
-              const disposedItems = history.disposed.length;
-              setStatistics(prev => {
-                if (!prev) return null;
-                const totalReturned = history.returned.length + localReturnedLostRecords.length + localReturnedFoundRecords.length;
-                const foundReturned = localReturnedFoundRecords.length + history.returned.filter(r => r.type === "Found").length;
-                return {
-                  ...prev,
-                  disposedItems,
-                  totalReturned,
-                  foundReturned,
-                };
-              });
-            }
-          } else if (activeTab === "returned") {
-            const [lost, found, history] = await Promise.all([
-              getAdminLostItems("Returned"),
-              getAdminFoundItems("Returned"),
-              getHistory(),
-            ]);
-            if (active) {
-              setLocalReturnedLostRecords(lost);
-              setLocalReturnedFoundRecords(found);
-              setLocalReturnedHistory(history.returned);
-              setLocalDisposedHistory(history.disposed);
-
-              // Update stats for returned and disposed
-              const totalReturned = history.returned.length + lost.length + found.length;
-              const disposedItems = history.disposed.length;
-              const foundReturned = found.length + history.returned.filter(r => r.type === "Found").length;
-              setStatistics(prev => {
-                if (!prev) return null;
-                return {
-                  ...prev,
-                  totalReturned,
-                  disposedItems,
-                  foundReturned,
-                };
-              });
-            }
-          }
-        } catch (error) {
-          console.error("Failed to load history tab dataset", error);
-        } finally {
-          if (active) setIsApiLoading(false);
+      } catch (error) {
+        console.error("Failed to load history initial data", error);
+      } finally {
+        if (active) {
+          setIsApiLoading(false);
+          setIsStatsLoading(false);
         }
       }
     };
@@ -2105,23 +2131,53 @@ function ItemHistoryPage({
     return () => {
       active = false;
     };
-  }, [activeTab, isLoggingOut, dateError]);
+  }, [isLoggingOut]);
 
+  // Debounce search input — only activate at >=3 characters or when empty
+  useEffect(() => {
+    setIsFiltering(true);
+    const trimmed = searchTerm.trim();
+    if (trimmed.length === 0) {
+      setSearchHint(null);
+      const t = setTimeout(() => {
+        if (prevSearchRef.current !== "") {
+          prevSearchRef.current = "";
+          setActiveSearch("");
+        }
+        setIsFiltering(false);
+      }, 400);
+      return () => clearTimeout(t);
+    }
+    if (trimmed.length < 3) {
+      setSearchHint("Enter at least 3 characters to search.");
+      setIsFiltering(false);
+      return;
+    }
+    setSearchHint(null);
+    const t = setTimeout(() => {
+      if (prevSearchRef.current !== trimmed) {
+        prevSearchRef.current = trimmed;
+        setActiveSearch(trimmed);
+      }
+      setIsFiltering(false);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Debounce date and type inputs
   useEffect(() => {
     setIsFiltering(true);
     const handler = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
       const isDateValid = !dateError && (!dateTo || dateTo.length === 10);
       setDebouncedDateTo(isDateValid ? dateTo : "");
       setDebouncedFilterType(filterType);
       setIsFiltering(false);
     }, 300);
-
     return () => clearTimeout(handler);
-  }, [searchTerm, dateTo, filterType, dateError]);
+  }, [dateTo, filterType, dateError]);
 
   // Returned records come from the backend history endpoint plus current returned records.
-  const returnedItems = [
+  const returnedItems = useMemo(() => [
     ...localReturnedHistory.map(i => ({
       id: i.id, name: i.name, type: i.type,
       reportedDate: i.reportedDate, closedDate: i.closedDate,
@@ -2140,7 +2196,7 @@ function ItemHistoryPage({
       studentName: i.studentName, rollNo: i.rollNo, location: i.location,
       reporter: "", reporterPhone: "", reporterEmail: "",
     })),
-  ];
+  ], [localReturnedHistory, localReturnedLostRecords, localReturnedFoundRecords]);
 
   const parseSelectedDate = (dateStr: string): Date => {
     const parts = dateStr.split("-");
@@ -2161,12 +2217,54 @@ function ItemHistoryPage({
     }
   };
 
-  const isSearchActive = debouncedSearchTerm.trim().length >= 5;
-  const showSearchError = searchTerm.trim().length > 0 && searchTerm.trim().length < 5;
+  const isSearchActive = activeSearch.length > 0;
 
-  const dateAndTypeFilteredReturned = returnedItems.filter(r => {
-    const matchesType = !debouncedFilterType || r.type === debouncedFilterType;
-    const matchesDate = matchesExactDate(r.closedDate, debouncedDateTo);
+  const dateAndTypeFilteredReturned = useMemo(() => {
+    const records = returnedItems.filter(r => {
+      const matchesType = !debouncedFilterType || r.type === debouncedFilterType;
+      const matchesDate = matchesExactDate(r.closedDate, debouncedDateTo);
+      return matchesType && matchesDate;
+    });
+    return records.sort((a, b) => parseHistoryDateToMs(b.closedDate) - parseHistoryDateToMs(a.closedDate));
+  }, [returnedItems, debouncedFilterType, debouncedDateTo]);
+
+  const filteredReturned = useMemo(() => {
+    return dateAndTypeFilteredReturned.filter(r => {
+      return !activeSearch || matchesHistorySearch(r.name, r.location, activeSearch);
+    });
+  }, [dateAndTypeFilteredReturned, activeSearch]);
+
+  // Lost & Not Found: lost items that expired (60+ days) and were never returned
+  const lostNotFoundRecords = useMemo(() => localNotReturnedLostRecords
+    .filter(i => getDaysInfo(i.reportedAt).isExpired)
+    .map(i => ({
+      id: i.id, name: i.name, reportedDate: i.reportedAt,
+      location: i.location, reporter: i.reporterName,
+      reporterPhone: i.reporterPhone, reporterEmail: i.reporterEmail,
+      daysElapsed: getDaysInfo(i.reportedAt).daysElapsed,
+    })), [localNotReturnedLostRecords]);
+
+  const dateFilteredLostNotFound = useMemo(() => {
+    const records = lostNotFoundRecords.filter(r => matchesExactDate(r.reportedDate, debouncedDateTo));
+    return records.sort((a, b) => parseHistoryDateToMs(b.reportedDate) - parseHistoryDateToMs(a.reportedDate));
+  }, [lostNotFoundRecords, debouncedDateTo]);
+
+  const filteredLostNotFound = useMemo(() => {
+    return dateFilteredLostNotFound.filter(r => {
+      return !activeSearch || matchesHistorySearch(r.name, r.location, activeSearch);
+    });
+  }, [dateFilteredLostNotFound, activeSearch]);
+
+  const dateFilteredDisposed = useMemo(() => {
+    const records = localDisposedHistory.filter(r => matchesExactDate(r.disposedDate, debouncedDateTo));
+    return records.sort((a, b) => parseHistoryDateToMs(b.disposedDate) - parseHistoryDateToMs(a.disposedDate));
+  }, [localDisposedHistory, debouncedDateTo]);
+
+  const filteredDisposed = useMemo(() => {
+    return dateFilteredDisposed.filter(r => {
+      return !activeSearch || matchesHistorySearch(r.name, r.location, activeSearch);
+    });
+  }, [dateFilteredDisposed, activeSearch]);sedDate, debouncedDateTo);
     return matchesType && matchesDate;
   });
   const filteredReturned = isSearchActive
@@ -2263,9 +2361,9 @@ function ItemHistoryPage({
                 onChange={e => setSearchTerm(e.target.value)}
                 className={inputCls + " pl-9"} style={{ fontFamily: "DM Sans, sans-serif" }} />
             </div>
-            {showSearchError && (
-              <p className="text-red-500 text-[10px] mt-1 font-medium animate-fade-in" style={{ fontFamily: "DM Sans, sans-serif" }}>
-                Please enter at least 5 characters to search.
+            {searchHint && (
+              <p className="absolute left-0 top-full mt-1 text-xs text-amber-500 z-10 font-medium animate-fade-in" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                {searchHint}
               </p>
             )}
           </div>
