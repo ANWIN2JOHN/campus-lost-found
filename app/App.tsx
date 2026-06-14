@@ -3042,6 +3042,83 @@ function AdminTablePagination({
   );
 }
 
+// ─── Synonym map for intelligent Lost Items search ─────────────────────
+const LOST_ITEM_SYNONYMS: Record<string, string[]> = {
+  bag: ["backpack", "sack", "pouch", "tote", "knapsack", "haversack", "bagpack", "school bag", "travel bag", "handbag", "satchel", "kit bag", "gym bag", "skybag", "laptop bag", "duffle", "duffel", "leather bag"],
+  backpack: ["bag", "school bag", "travel bag", "knapsack", "haversack", "bagpack", "rucksack", "skybag", "campus bag"],
+  phone: ["mobile", "cell", "smartphone", "handphone", "iphone", "android", "cellphone", "handset"],
+  mobile: ["phone", "cell", "smartphone", "handphone", "iphone", "android", "cellphone"],
+  wallet: ["purse", "billfold", "card holder", "money clip"],
+  bottle: ["water bottle", "flask", "tumbler", "sipper", "thermos", "canteen"],
+  "water bottle": ["bottle", "flask", "tumbler", "sipper"],
+  glasses: ["spectacles", "specs", "eyeglasses", "sunglasses", "shades", "goggles", "reading glasses", "frames"],
+  spectacles: ["glasses", "specs", "eyeglasses", "frames"],
+  keys: ["key", "keychain", "key ring", "keyring", "locket", "lanyard key"],
+  key: ["keys", "keychain", "key ring", "keyring"],
+  charger: ["adapter", "cable", "power adapter", "charging cable", "plug"],
+  earphones: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds"],
+  headphones: ["earphones", "earbuds", "headset", "over-ear"],
+  umbrella: ["raincoat", "rain cover"],
+  book: ["notebook", "textbook", "notes", "journal", "diary", "workbook"],
+  notebook: ["book", "notes", "journal", "copy", "notepad"],
+  pen: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter"],
+  pencil: ["pen", "eraser", "sketch"],
+  calculator: ["calc", "scientific calculator"],
+  laptop: ["computer", "pc", "macbook", "notebook computer", "chromebook"],
+  watch: ["wristwatch", "timepiece", "clock", "smartwatch"],
+  id: ["id card", "identity card", "student id", "college id", "college card", "access card", "pass"],
+  "id card": ["identity card", "student id", "college card", "access card", "id"],
+  earring: ["earrings", "stud", "hoop", "jewelry"],
+  necklace: ["chain", "pendant", "locket", "jewelry"],
+  ring: ["band", "finger ring", "jewelry"],
+  bracelet: ["bangle", "wristband", "jewelry"],
+};
+
+/** Expand a single query word into all synonym terms (including itself). */
+function getLostSynonymTerms(word: string): string[] {
+  const lower = word.toLowerCase();
+  const synonyms = LOST_ITEM_SYNONYMS[lower] || [];
+  const reverseMatches = Object.entries(LOST_ITEM_SYNONYMS)
+    .filter(([, syns]) => syns.some(s => s.toLowerCase() === lower))
+    .map(([key]) => key);
+  return [lower, ...synonyms.map(s => s.toLowerCase()), ...reverseMatches];
+}
+
+/**
+ * Intelligent multi-strategy matcher for Lost Items.
+ * Checks item name + reporter name against: exact, partial, keyword, synonym.
+ */
+function matchesLostSearch(item: AdminLostItem, query: string): boolean {
+  if (!query) return true;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const nameHaystack = item.name.toLowerCase();
+  const reporterHaystack = item.reporterName.toLowerCase();
+  const combined = `${nameHaystack} ${reporterHaystack}`;
+
+  // 1. Partial / substring match on name or reporter
+  if (nameHaystack.includes(q) || reporterHaystack.includes(q)) return true;
+
+  // 2. Keyword match: all words in query appear in the combined haystack
+  const queryWords = q.split(/\s+/).filter(Boolean);
+  if (queryWords.length > 1 && queryWords.every(w => combined.includes(w))) return true;
+
+  // 3. Synonym match: expand each word and check against item name
+  for (const word of queryWords) {
+    const terms = getLostSynonymTerms(word);
+    if (terms.some(term => nameHaystack.includes(term))) return true;
+  }
+
+  return false;
+}
+
+/** Case-insensitive partial location match. */
+function matchesLostLocation(item: AdminLostItem, query: string): boolean {
+  if (!query) return true;
+  return item.location.toLowerCase().includes(query.trim().toLowerCase());
+}
+
 function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { items: AdminLostItem[]; setItems: React.Dispatch<React.SetStateAction<AdminLostItem[]>>; onReturn: (r: ReturnedLostRecord) => void; isLoading?: boolean; onRefresh?: () => void }) {
   const [editItem, setEditItem] = useState<AdminLostItem | null>(null);
   const [editStatus, setEditStatus] = useState("");
@@ -3056,34 +3133,97 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
 
   const showSkeleton = isLoading || isRefreshing;
 
+  // Raw input state (bound to inputs)
   const [searchTerm, setSearchTerm] = useState("");
   const [filterLocation, setFilterLocation] = useState("");
   const [filterCountdown, setFilterCountdown] = useState("");
 
+  // Debounced effective values — only updated when input ≥3 chars or empty
+  const [activeSearch, setActiveSearch] = useState("");
+  const [activeLocation, setActiveLocation] = useState("");
+  const [searchHint, setSearchHint] = useState<string | null>(null);
+  const [locationHint, setLocationHint] = useState<string | null>(null);
+
+  // Track previous debounced values to prevent duplicate re-renders
+  const prevSearchRef = useRef("");
+  const prevLocationRef = useRef("");
+
+  // Debounce search input — only activate at ≥3 chars
+  useEffect(() => {
+    const trimmed = searchTerm.trim();
+    if (trimmed.length === 0) {
+      setSearchHint(null);
+      const t = setTimeout(() => {
+        if (prevSearchRef.current !== "") { prevSearchRef.current = ""; setActiveSearch(""); }
+      }, 400);
+      return () => clearTimeout(t);
+    }
+    if (trimmed.length < 3) {
+      setSearchHint("Enter at least 3 characters to search.");
+      return; // Don't update activeSearch — avoids stale/partial-query results
+    }
+    setSearchHint(null);
+    const t = setTimeout(() => {
+      if (prevSearchRef.current !== trimmed) { prevSearchRef.current = trimmed; setActiveSearch(trimmed); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Debounce location input — only activate at ≥3 chars
+  useEffect(() => {
+    const trimmed = filterLocation.trim();
+    if (trimmed.length === 0) {
+      setLocationHint(null);
+      const t = setTimeout(() => {
+        if (prevLocationRef.current !== "") { prevLocationRef.current = ""; setActiveLocation(""); }
+      }, 400);
+      return () => clearTimeout(t);
+    }
+    if (trimmed.length < 3) {
+      setLocationHint("Enter at least 3 characters to filter.");
+      return;
+    }
+    setLocationHint(null);
+    const t = setTimeout(() => {
+      if (prevLocationRef.current !== trimmed) { prevLocationRef.current = trimmed; setActiveLocation(trimmed); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [filterLocation]);
+
   const statusColor = (s: string) =>
     s === "Returned" ? "text-emerald-600 bg-emerald-100" : "text-amber-600 bg-amber-100";
 
-  const filteredItems = items
-    .filter(item => {
-      if (item.status === "Returned") return false;
-      if (item.status === "Not Returned" && getDaysInfo(item.reportedAt).isExpired) return false;
-      const q = searchTerm.toLowerCase();
-      const matchesSearch = !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.location.toLowerCase().includes(q) ||
-        item.reporterName.toLowerCase().includes(q) ||
-        item.reportedAt.toLowerCase().includes(q);
-      const matchesLocation = !filterLocation || item.location.toLowerCase().includes(filterLocation.toLowerCase());
-      const matchesCountdown = !filterCountdown || getDaysInfo(item.reportedAt).countdownStatus === filterCountdown;
-      return matchesSearch && matchesLocation && matchesCountdown;
-    })
-    .sort((a, b) => parseDateTime(b.reportedAt) - parseDateTime(a.reportedAt));
+  // Statistics: always computed from the FULL dataset — unaffected by search/filter state
+  const statsItems = useMemo(() =>
+    items.filter(item => item.status !== "Returned"),
+    [items]
+  );
+
+  // Filtered + sorted items for the table (newest first)
+  const filteredItems = useMemo(() =>
+    items
+      .filter(item => {
+        if (item.status === "Returned") return false;
+        if (item.status === "Not Returned" && getDaysInfo(item.reportedAt).isExpired) return false;
+        if (!matchesLostSearch(item, activeSearch)) return false;
+        if (!matchesLostLocation(item, activeLocation)) return false;
+        const matchesCountdown = !filterCountdown || getDaysInfo(item.reportedAt).countdownStatus === filterCountdown;
+        return matchesCountdown;
+      })
+      .sort((a, b) => parseDateTime(b.reportedAt) - parseDateTime(a.reportedAt)),
+    [items, activeSearch, activeLocation, filterCountdown]
+  );
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const safePage = Math.min(currentPage, totalPages);
   const pageItems = filteredItems.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
 
-  const clearFilters = () => { setSearchTerm(""); setFilterLocation(""); setCurrentPage(1); };
+  const clearFilters = () => {
+    setSearchTerm(""); setActiveSearch(""); prevSearchRef.current = "";
+    setFilterLocation(""); setActiveLocation(""); prevLocationRef.current = "";
+    setSearchHint(null); setLocationHint(null);
+    setCurrentPage(1);
+  };
 
   const handleEdit = (item: AdminLostItem) => {
     if (item.status === "Returned") return;
@@ -3141,18 +3281,6 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
     }
   };
 
-  const statsItems = items.filter(item => {
-    if (item.status === "Returned") return false;
-    const q = searchTerm.toLowerCase();
-    const matchesSearch = !q ||
-      item.name.toLowerCase().includes(q) ||
-      item.location.toLowerCase().includes(q) ||
-      item.reporterName.toLowerCase().includes(q) ||
-      item.reportedAt.toLowerCase().includes(q);
-    const matchesLocation = !filterLocation || item.location.toLowerCase().includes(filterLocation.toLowerCase());
-    return matchesSearch && matchesLocation;
-  });
-
   return (
     <main className="flex-1 overflow-y-auto px-5 py-4 bg-gray-50">
       <div className="mb-4">
@@ -3160,7 +3288,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
         <p className="text-gray-600 text-sm" style={{ fontFamily: "DM Sans, sans-serif" }}>Manage all lost items reported on campus</p>
       </div>
 
-      {/* Countdown Summary Cards */}
+      {/* Countdown Summary Cards — always use full dataset, unaffected by search/filter */}
       <CountdownSummaryCards items={statsItems as Array<Record<string, string>>} dateField="reportedAt" isLoading={showSkeleton} />
 
       {/* Search and Filters */}
@@ -3176,6 +3304,9 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
+            {searchHint && (
+              <p className="absolute left-0 top-full mt-1 text-xs text-amber-500 z-10" style={{ fontFamily: "DM Sans, sans-serif" }}>{searchHint}</p>
+            )}
           </div>
           <div className="relative">
             <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -3187,6 +3318,9 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
               style={{ fontFamily: "DM Sans, sans-serif" }}
             />
+            {locationHint && (
+              <p className="absolute left-0 top-full mt-1 text-xs text-amber-500 z-10" style={{ fontFamily: "DM Sans, sans-serif" }}>{locationHint}</p>
+            )}
           </div>
         </div>
         {/* Countdown filter row */}
