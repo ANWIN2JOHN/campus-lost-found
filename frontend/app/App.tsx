@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { toast, Toaster } from "sonner";
 import {
-  Search, FolderOpen, BookOpen, Phone, Bell, ChevronRight,
+  Search, FolderOpen, BookOpen, Phone, Bell, ChevronRight, ChevronDown,
   CheckSquare, Settings, LogOut, Plus, Edit2, Trash2,
   CheckCircle, Calendar, MapPin, Filter, Tag,
   AlertCircle, AlertTriangle, Check,
@@ -1294,6 +1294,8 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
   const [locationError, setLocationError] = useState<string | null>(null);
 
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [isCategoryFocused, setIsCategoryFocused] = useState(false);
+  const [isStatusFocused, setIsStatusFocused] = useState(false);
   // "Others" keyword search — client-side sub-filter for custom category text
   const [othersKeyword, setOthersKeyword] = useState("");
 
@@ -1560,17 +1562,25 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
           </div>
 
           {/* Category Filter */}
-          <select
-            value={selectedCategory}
-            onChange={e => applyCategory(e.target.value)}
-            className="px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all appearance-none"
-            style={{ fontFamily: "DM Sans, sans-serif" }}
-          >
-            <option value="">All Categories</option>
-            {categories.map(cat => (
-              <option key={cat.name} value={cat.name}>{cat.name}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={selectedCategory}
+              onChange={e => applyCategory(e.target.value)}
+              onFocus={() => setIsCategoryFocused(true)}
+              onBlur={() => setIsCategoryFocused(false)}
+              className="w-full pl-4 pr-10 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all appearance-none cursor-pointer"
+              style={{ fontFamily: "DM Sans, sans-serif" }}
+            >
+              <option value="">All Categories</option>
+              {categories.map(cat => (
+                <option key={cat.name} value={cat.name}>{cat.name}</option>
+              ))}
+            </select>
+            <ChevronDown
+              size={15}
+              className={`absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 transition-transform duration-200 ${isCategoryFocused ? "rotate-180 text-[#0891B2]" : ""}`}
+            />
+          </div>
 
           {/* "Others" keyword search — shown only when Others is selected */}
           {selectedCategory === "Others" && (
@@ -1588,17 +1598,25 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
           )}
 
           {/* Claim Status Filter */}
-          <select
-            value={countdownFilter}
-            onChange={e => applyCountdown(e.target.value)}
-            className="px-4 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all appearance-none"
-            style={{ fontFamily: "DM Sans, sans-serif" }}
-          >
-            <option value="">All Claim Status</option>
-            <option value="active">🟢 Active (31–60 days)</option>
-            <option value="expiring">🟡 Expiring Soon (11–30 days)</option>
-            <option value="last10">🔴 Last 10 Days</option>
-          </select>
+          <div className="relative">
+            <select
+              value={countdownFilter}
+              onChange={e => applyCountdown(e.target.value)}
+              onFocus={() => setIsStatusFocused(true)}
+              onBlur={() => setIsStatusFocused(false)}
+              className="w-full pl-4 pr-10 py-2.5 bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-700 focus:outline-none focus:border-[#0891B2] focus:ring-2 focus:ring-[#0891B2]/15 transition-all appearance-none cursor-pointer"
+              style={{ fontFamily: "DM Sans, sans-serif" }}
+            >
+              <option value="">All Claim Status</option>
+              <option value="active">🟢 Active (31–60 days)</option>
+              <option value="expiring">🟡 Expiring Soon (11–30 days)</option>
+              <option value="last10">🔴 Last 10 Days</option>
+            </select>
+            <ChevronDown
+              size={15}
+              className={`absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 transition-transform duration-200 ${isStatusFocused ? "rotate-180 text-[#0891B2]" : ""}`}
+            />
+          </div>
 
           {/* Date Filter — restricted to current date and past 30 days only */}
           <div className="relative">
