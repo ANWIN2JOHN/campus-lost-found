@@ -46,6 +46,15 @@ function get30DaysAgoDateString(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function getCurrentAcademicYearStartDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const startYear = month < 5 ? year - 1 : year;
+  return `${startYear}-06-01`;
+}
+
+
 // ─── Input Validation Helpers ───────────────────────────────────────────────
 function validateEmail(email: string): string | null {
   const trimmed = email.trim();
@@ -2272,6 +2281,8 @@ function ItemHistoryPage({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Dedicated stable statistics state:
   const [statistics, setStatistics] = useState<{
@@ -2314,17 +2325,42 @@ function ItemHistoryPage({
           getHistory(),
         ]);
         if (active) {
-          setLocalReturnedLostRecords(returnedLost);
-          setLocalReturnedFoundRecords(returnedFound);
-          setLocalNotReturnedLostRecords(notReturnedLost);
-          setLocalReturnedHistory(history.returned);
-          setLocalDisposedHistory(history.disposed);
+          const startStr = getCurrentAcademicYearStartDateString();
+          const ayStartDate = new Date(startStr);
+          ayStartDate.setHours(0, 0, 0, 0);
+
+          const filteredReturnedLost = returnedLost.filter(i => {
+            const d = parseDateForCountdown(i.claimedDate || i.lastUpdated);
+            return d >= ayStartDate;
+          });
+          const filteredReturnedFound = returnedFound.filter(i => {
+            const d = parseDateForCountdown(i.returnedDate || i.lastUpdated);
+            return d >= ayStartDate;
+          });
+          const filteredNotReturnedLost = notReturnedLost.filter(i => {
+            const d = parseDateForCountdown(i.reportedAt);
+            return d >= ayStartDate;
+          });
+          const filteredHistoryReturned = history.returned.filter(i => {
+            const d = parseDateForCountdown(i.closedDate);
+            return d >= ayStartDate;
+          });
+          const filteredHistoryDisposed = history.disposed.filter(i => {
+            const d = parseDateForCountdown(i.disposedDate);
+            return d >= ayStartDate;
+          });
+
+          setLocalReturnedLostRecords(filteredReturnedLost);
+          setLocalReturnedFoundRecords(filteredReturnedFound);
+          setLocalNotReturnedLostRecords(filteredNotReturnedLost);
+          setLocalReturnedHistory(filteredHistoryReturned);
+          setLocalDisposedHistory(filteredHistoryDisposed);
 
           // Compute statistics
-          const totalReturned = history.returned.length + returnedLost.length + returnedFound.length;
-          const lostNotFound = notReturnedLost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
-          const disposedItems = history.disposed.length;
-          const foundReturned = returnedFound.length + history.returned.filter(r => r.type === "Found").length;
+          const totalReturned = filteredHistoryReturned.length + filteredReturnedLost.length + filteredReturnedFound.length;
+          const lostNotFound = filteredNotReturnedLost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
+          const disposedItems = filteredHistoryDisposed.length;
+          const foundReturned = filteredReturnedFound.length + filteredHistoryReturned.filter(r => r.type === "Found").length;
 
           setStatistics({
             totalReturned,
@@ -2383,13 +2419,18 @@ function ItemHistoryPage({
   useEffect(() => {
     setIsFiltering(true);
     const handler = setTimeout(() => {
-      const isDateValid = !dateError && (!dateTo || dateTo.length === 10);
-      setDebouncedDateTo(isDateValid ? dateTo : "");
+      if (!dateError) {
+        setDebouncedDateTo(dateTo);
+      }
       setDebouncedFilterType(filterType);
       setIsFiltering(false);
     }, 300);
     return () => clearTimeout(handler);
   }, [dateTo, filterType, dateError]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, activeSearch, debouncedFilterType, debouncedDateTo]);
 
   // Returned records come from the backend history endpoint plus current returned records.
   const returnedItems = useMemo(() => [
@@ -2481,6 +2522,19 @@ function ItemHistoryPage({
     });
   }, [dateFilteredDisposed, activeSearch]);
 
+  const activeItems = useMemo(() => {
+    if (activeTab === "returned") return filteredReturned;
+    if (activeTab === "lost-not-found") return filteredLostNotFound;
+    return filteredDisposed;
+  }, [activeTab, filteredReturned, filteredLostNotFound, filteredDisposed]);
+
+  const pageItems = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(activeItems.length / rowsPerPage));
+    const safePage = Math.min(currentPage, totalPages);
+    const startIdx = (safePage - 1) * rowsPerPage;
+    return activeItems.slice(startIdx, startIdx + rowsPerPage);
+  }, [activeItems, currentPage, rowsPerPage]);
+
   const inputCls = "w-full bg-[#F5F7FA] border border-[#E5E7EB] rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/15 transition-all py-2.5";
 
   return (
@@ -2560,7 +2614,7 @@ function ItemHistoryPage({
             <div className="relative">
               <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input type="date" value={dateTo}
-                min={get30DaysAgoDateString()}
+                min={getCurrentAcademicYearStartDateString()}
                 max={getTodayDateString()}
                 onChange={e => {
                   const val = e.target.value;
@@ -2571,12 +2625,12 @@ function ItemHistoryPage({
                     return;
                   }
                   if (val && val.length === 10) {
-                    if (val >= get30DaysAgoDateString() && val <= getTodayDateString()) {
+                    if (val >= getCurrentAcademicYearStartDateString() && val <= getTodayDateString()) {
                       setDateTo(val);
                       setDateError(null);
                     } else {
                       setDateTo("");
-                      setDateError("Please select a date within the last 30 days.");
+                      setDateError("Please select a date within the current academic year.");
                     }
                   } else {
                     setDateTo(val);
@@ -2585,13 +2639,13 @@ function ItemHistoryPage({
                 onBlur={e => {
                   const val = e.target.value;
                   const validity = e.target.validity;
-                  if (validity.badInput || !val || val.length !== 10 || val < get30DaysAgoDateString() || val > getTodayDateString()) {
+                  if (validity.badInput || !val || val.length !== 10 || val < getCurrentAcademicYearStartDateString() || val > getTodayDateString()) {
                     if (!val && !validity.badInput) {
                       setDateTo("");
                       setDateError(null);
                     } else {
                       setDateTo("");
-                      setDateError("Please select a date within the last 30 days.");
+                      setDateError("Please select a date within the current academic year.");
                     }
                   }
                 }}
@@ -2675,8 +2729,8 @@ function ItemHistoryPage({
                   <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No Lost &amp; Not Found items found for the selected filters.</td></tr>
                 ) : isSearchActive && filteredLostNotFound.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400 text-sm">No matching Lost &amp; Not Found items found.</td></tr>
-                ) : filteredLostNotFound.map((item, i) => {
-                  const elapsed = item.daysElapsed;
+                ) : pageItems.map((item, i) => {
+                  const elapsed = (item as any).daysElapsed;
                   return (
                     <tr key={`lnf-${item.id}`} className={`border-b border-gray-100 hover:bg-red-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
                       <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
@@ -2692,17 +2746,17 @@ function ItemHistoryPage({
                   <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">No returned items found for the selected filters.</td></tr>
                 ) : isSearchActive && filteredReturned.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-10 text-center text-gray-400 text-sm">No matching returned items found.</td></tr>
-                ) : filteredReturned.map((item, i) => (
-                  <tr key={`ret-${item.type}-${item.id}`} className={`border-b border-gray-100 hover:bg-emerald-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
+                ) : pageItems.map((item, i) => (
+                  <tr key={`ret-${(item as any).type}-${item.id}`} className={`border-b border-gray-100 hover:bg-emerald-50/30 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
                     <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${item.type === "Lost" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{item.type}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${(item as any).type === "Lost" ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>{(item as any).type}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reportedDate}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.closedDate || "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{(item as any).closedDate || "—"}</td>
                     <td className="px-4 py-3 text-gray-600 max-w-[120px]"><span className="truncate block">{item.location}</span></td>
-                    <td className="px-4 py-3 text-gray-900 whitespace-nowrap">{item.studentName ? <CardNameTooltip name={item.studentName} /> : "—"}</td>
-                    <td className="px-4 py-3 text-gray-600 font-mono">{item.rollNo || "—"}</td>
+                    <td className="px-4 py-3 text-gray-900 whitespace-nowrap">{(item as any).studentName ? <CardNameTooltip name={(item as any).studentName} /> : "—"}</td>
+                    <td className="px-4 py-3 text-gray-600 font-mono">{(item as any).rollNo || "—"}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reporter ? <CardNameTooltip name={item.reporter} /> : "—"}</td>
                   </tr>
                 ))
@@ -2711,13 +2765,13 @@ function ItemHistoryPage({
                   <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">No disposed items found for the selected filters.</td></tr>
                 ) : isSearchActive && filteredDisposed.length === 0 ? (
                   <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400 text-sm">No matching disposed items found.</td></tr>
-                ) : filteredDisposed.map((item, i) => (
-                  <tr key={`dis-${item.type}-${item.id}-${i}`} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
+                ) : pageItems.map((item, i) => (
+                  <tr key={`dis-${(item as any).type}-${item.id}-${i}`} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${i % 2 !== 0 ? "bg-gray-50/40" : ""}`}>
                     <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}><CardNameTooltip name={item.name} /></td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.disposedDate}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{(item as any).disposedDate}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-pink-50 text-pink-600">
-                        {item.donatedTo || item.disposalLocation || "—"}
+                        {(item as any).donatedTo || (item as any).disposalLocation || "—"}
                       </span>
                     </td>
                   </tr>
@@ -2726,6 +2780,13 @@ function ItemHistoryPage({
             </tbody>
           </table>
         </div>
+        <AdminTablePagination
+          totalRecords={activeItems.length}
+          currentPage={currentPage}
+          rowsPerPage={rowsPerPage}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={n => { setRowsPerPage(n); setCurrentPage(1); }}
+        />
       </div>
     </main>
   );
@@ -2801,13 +2862,14 @@ function matchesExpiredSearch(name: string, query: string): boolean {
 }
 
 function ExpiredItemsPage({
-  foundAdminRecords, lostAdminRecords, setFoundAdminRecords, setLostAdminRecords, onDispose,
+  foundAdminRecords, lostAdminRecords, setFoundAdminRecords, setLostAdminRecords, onDispose, onReturn,
 }: {
   foundAdminRecords: AdminFoundItem[];
   lostAdminRecords: AdminLostItem[];
   setFoundAdminRecords: React.Dispatch<React.SetStateAction<AdminFoundItem[]>>;
   setLostAdminRecords: React.Dispatch<React.SetStateAction<AdminLostItem[]>>;
   onDispose: (record: DisposedRecord) => void;
+  onReturn: (r: ReturnedLostRecord) => void;
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -2829,6 +2891,25 @@ function ExpiredItemsPage({
   const [searchHint, setSearchHint] = useState<string | null>(null);
   const prevSearchRef = useRef("");
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Reclaim modal states
+  const [reclaimItem, setReclaimItem] = useState<AdminFoundItem | null>(null);
+  const [reclaimModalVisible, setReclaimModalVisible] = useState(false);
+  const [isReclaimSaveLoading, setIsReclaimSaveLoading] = useState(false);
+  const [reclaimStudentName, setReclaimStudentName] = useState("");
+  const [reclaimRollNo, setReclaimRollNo] = useState("");
+  const [reclaimPhone, setReclaimPhone] = useState("");
+  const [reclaimEmail, setReclaimEmail] = useState("");
+  const [reclaimReturnedDate, setReclaimReturnedDate] = useState(getTodayDateString());
+  const [reclaimReturnedTime, setReclaimReturnedTime] = useState("");
+  const [reclaimRemarks, setReclaimRemarks] = useState("");
+  const [reclaimFieldErrors, setReclaimFieldErrors] = useState<Record<string, string>>({});
+  const [isReclaimModalLoading, setIsReclaimModalLoading] = useState(false);
+  const reclaimCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const trimmed = searchTerm.trim();
     if (trimmed.length === 0) {
@@ -2849,11 +2930,28 @@ function ExpiredItemsPage({
     return () => clearTimeout(t);
   }, [searchTerm]);
 
+  // Reset pagination to page 1 when activeSearch changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeSearch]);
+
   // Statistics: always derived from the full expired dataset — never affected by search
   const expiredFoundRecords = useMemo(() =>
     foundAdminRecords
       .filter(i => i.status === "Not Returned" && getDaysInfo(i.foundAt).isExpired)
-      .map(i => ({ id: i.id, name: i.name, type: "Found" as const, reportedDate: i.dateFound, location: i.location, reporter: "", reporterPhone: "", reporterEmail: "", daysElapsed: getDaysInfo(i.foundAt).daysElapsed })),
+      .map(i => ({
+        id: i.id,
+        name: i.name,
+        type: "Found" as const,
+        reportedDate: i.dateFound,
+        location: i.location,
+        reporter: "",
+        reporterPhone: "",
+        reporterEmail: "",
+        daysElapsed: getDaysInfo(i.foundAt).daysElapsed,
+        foundAt: i.foundAt,
+        lastUpdated: i.lastUpdated || i.foundAt,
+      })),
     [foundAdminRecords]
   );
 
@@ -2864,6 +2962,11 @@ function ExpiredItemsPage({
       .sort((a, b) => a.daysElapsed - b.daysElapsed),
     [expiredFoundRecords, activeSearch]
   );
+
+  // Pagination slicing
+  const totalPages = Math.max(1, Math.ceil(allExpired.length / rowsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageItems = allExpired.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
 
   const openModal = (item: typeof allExpired[0]) => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -2880,6 +2983,127 @@ function ExpiredItemsPage({
   const closeModal = () => {
     setModalVisible(false);
     closeTimerRef.current = setTimeout(() => setSelectedItem(null), 260);
+  };
+
+  const openReclaimModal = (item: typeof allExpired[0]) => {
+    if (reclaimCloseTimerRef.current) clearTimeout(reclaimCloseTimerRef.current);
+    const fullItem = foundAdminRecords.find(i => i.id === item.id);
+    if (!fullItem) return;
+    setReclaimItem(fullItem);
+    setReclaimStudentName(fullItem.studentName || "");
+    setReclaimRollNo(fullItem.rollNo || "");
+    setReclaimPhone("");
+    setReclaimEmail("");
+    const _now = new Date();
+    setReclaimReturnedDate(fullItem.returnedDate || getTodayDateString());
+    setReclaimReturnedTime(`${String(_now.getHours()).padStart(2, "0")}:${String(_now.getMinutes()).padStart(2, "0")}`);
+    setReclaimRemarks("");
+    setReclaimFieldErrors({});
+    setIsReclaimSaveLoading(false);
+    setIsReclaimModalLoading(true);
+    setTimeout(() => {
+      setIsReclaimModalLoading(false);
+    }, 450);
+    requestAnimationFrame(() => requestAnimationFrame(() => setReclaimModalVisible(true)));
+  };
+
+  const closeReclaimModal = () => {
+    setReclaimModalVisible(false);
+    reclaimCloseTimerRef.current = setTimeout(() => setReclaimItem(null), 260);
+  };
+
+  const isReclaimValid =
+    !validateReturnStudentName(reclaimStudentName) &&
+    !validateReturnRollNo(reclaimRollNo) &&
+    !validateReturnPhone(reclaimPhone) &&
+    !validateReturnEmail(reclaimEmail, reclaimRollNo) &&
+    !validateReturnedDate(reclaimReturnedDate, reclaimItem?.dateFound ?? "") &&
+    !validateReturnedTime(reclaimReturnedTime, reclaimReturnedDate) &&
+    !validateReturnRemarks(reclaimRemarks);
+
+  const handleSaveReclaim = async () => {
+    if (!reclaimItem || isReclaimSaveLoading) return;
+    const errors: Record<string, string> = {};
+    const nameErr = validateReturnStudentName(reclaimStudentName);
+    if (nameErr) errors.name = nameErr;
+    const rollErr = validateReturnRollNo(reclaimRollNo);
+    if (rollErr) errors.roll = rollErr;
+    const phoneErr = validateReturnPhone(reclaimPhone);
+    if (phoneErr) errors.phone = phoneErr;
+    const emailErr = validateReturnEmail(reclaimEmail, reclaimRollNo);
+    if (emailErr) errors.email = emailErr;
+    const dateErr = validateReturnedDate(reclaimReturnedDate, reclaimItem.dateFound);
+    if (dateErr) errors.date = dateErr;
+    const timeErr = validateReturnedTime(reclaimReturnedTime, reclaimReturnedDate);
+    if (timeErr) errors.time = timeErr;
+    const remarksErr = validateReturnRemarks(reclaimRemarks);
+    if (remarksErr) errors.remarks = remarksErr;
+
+    if (Object.keys(errors).length > 0) {
+      setReclaimFieldErrors(errors);
+
+      const focusOrder = [
+        { key: "name", id: "reclaim-student-name" },
+        { key: "roll", id: "reclaim-roll-no" },
+        { key: "phone", id: "reclaim-phone" },
+        { key: "email", id: "reclaim-email" },
+        { key: "date", id: "reclaim-returned-date" },
+        { key: "time", id: "reclaim-returned-time" },
+        { key: "remarks", id: "reclaim-remarks" }
+      ];
+
+      for (const entry of focusOrder) {
+        if (errors[entry.key]) {
+          const el = document.getElementById(entry.id);
+          if (el) {
+            el.focus();
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          break;
+        }
+      }
+      return;
+    }
+
+    setReclaimFieldErrors({});
+    setIsReclaimSaveLoading(true);
+
+    const trimmedName = reclaimStudentName.trim();
+    const trimmedRoll = reclaimRollNo.trim().toLowerCase();
+    const trimmedPhone = reclaimPhone.trim();
+    const trimmedEmail = reclaimEmail.trim().toLowerCase();
+
+    try {
+      await updateFoundItemStatus(reclaimItem.id, trimmedName, trimmedRoll, trimmedPhone, trimmedEmail);
+      const now = formatNow();
+      onReturn({
+        id: reclaimItem.id,
+        type: "Found",
+        name: reclaimItem.name,
+        reportedDate: reclaimItem.dateFound,
+        closedDate: now,
+        studentName: trimmedName,
+        rollNo: trimmedRoll,
+        location: reclaimItem.location,
+        reporter: "",
+        reporterPhone: "",
+        reporterEmail: "",
+      });
+      setFoundAdminRecords(prev => prev.filter(i => i.id !== reclaimItem.id));
+      toast.success("Item marked as Reclaimed", {
+        description: `${reclaimItem.name} has been moved to Returned History.`,
+        duration: 3500,
+      });
+      closeReclaimModal();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to reclaim item", {
+        description: error instanceof Error ? error.message : "API Error",
+        duration: 4000,
+      });
+    } finally {
+      setIsReclaimSaveLoading(false);
+    }
   };
 
   const handleSubmitDisposal = async () => {
@@ -3002,27 +3226,44 @@ function ExpiredItemsPage({
                     </div>
                   </td>
                 </tr>
-              ) : allExpired.map((item, i) => (
+              ) : pageItems.map((item, i) => (
                 <tr key={`exp-${item.id}`} className={`border-b border-gray-100 hover:bg-gray-50/60 transition-colors ${i % 2 !== 0 ? "bg-gray-50/30" : ""}`}>
                   <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{item.name}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{item.reportedDate}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => { setDisposingItemId(item.id); openModal(item); }}
-                      disabled={disposingItemId === item.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                      style={{ fontFamily: "DM Sans, sans-serif" }}
-                    >
-                      {disposingItemId === item.id
-                        ? <><Loader2 size={11} className="animate-spin" /> Loading…</>
-                        : <><Recycle size={11} /> Mark Disposed</>}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openReclaimModal(item)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white text-[11px] font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      >
+                        <Check size={11} /> Reclaim
+                      </button>
+                      <button
+                        onClick={() => { setDisposingItemId(item.id); openModal(item); }}
+                        disabled={disposingItemId === item.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{ fontFamily: "DM Sans, sans-serif" }}
+                      >
+                        {disposingItemId === item.id
+                          ? <><Loader2 size={11} className="animate-spin" /> Loading…</>
+                          : <><Recycle size={11} /> Mark Disposed</>}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        <AdminTablePagination
+          totalRecords={allExpired.length}
+          currentPage={currentPage}
+          rowsPerPage={rowsPerPage}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={n => { setRowsPerPage(n); setCurrentPage(1); }}
+        />
       </div>
 
       {/* Disposal Modal */}
@@ -3168,6 +3409,335 @@ function ExpiredItemsPage({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Reclaim Found Item Modal ─────────────────────────────────────────── */}
+      {reclaimItem && (
+        <div
+          onClick={closeReclaimModal}
+          style={{
+            position: "fixed", inset: 0, zIndex: 50,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "1rem",
+            background: reclaimModalVisible ? "rgba(15,23,42,0.52)" : "rgba(15,23,42,0)",
+            backdropFilter: reclaimModalVisible ? "blur(4px)" : "blur(0px)",
+            transition: "background 0.25s ease, backdrop-filter 0.25s ease",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: "white",
+              borderRadius: "14px",
+              boxShadow: "0 25px 60px #00000030, 0 8px 20px #0000001a",
+              width: "100%",
+              maxWidth: "520px",
+              maxHeight: "92vh",
+              overflowY: "auto",
+              opacity: reclaimModalVisible ? 1 : 0,
+              transform: reclaimModalVisible ? "scale(1) translateY(0)" : "scale(0.96) translateY(10px)",
+              transition: "opacity 0.25s ease, transform 0.25s ease",
+            }}
+          >
+            {/* Modal header */}
+            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #f0f0f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <h2 style={{ fontFamily: "Outfit, sans-serif", fontSize: "1rem", fontWeight: 700, color: "#111827", margin: 0 }}>Reclaim Item</h2>
+                <p style={{ fontFamily: "DM Sans, sans-serif", fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>Update return details for this found item</p>
+              </div>
+              <button
+                onClick={closeReclaimModal}
+                style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6b7280", transition: "all 0.15s" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#fecaca"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; (e.currentTarget as HTMLButtonElement).style.color = "#6b7280"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#e5e7eb"; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: "16px" }}>
+
+              {/* Item Name (read-only) */}
+              <div>
+                <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Item Name</label>
+                <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#374151", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6M9 12h6M9 15h4" /></svg>
+                  <span style={{ fontWeight: 500, color: "#111827" }}>{reclaimItem.name}</span>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>
+                  Status <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "10px 12px", fontSize: 14, fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8, fontWeight: 600, color: "#15803d" }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  Reclaimed
+                </div>
+              </div>
+
+              {isReclaimModalLoading ? (
+                <div className="space-y-4 animate-pulse">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                    <div>
+                      <div style={{ height: 16, width: 80, background: "#e2e8f0", borderRadius: 4, marginBottom: 6 }}></div>
+                      <div style={{ height: 38, background: "#e2e8f0", borderRadius: 8 }}></div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Student Name + Roll Number */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Student Name <span style={{ color: "#ef4444" }}>*</span></label>
+                      <input
+                        id="reclaim-student-name"
+                        type="text"
+                        disabled={isReclaimSaveLoading}
+                        value={reclaimStudentName}
+                        onChange={e => { setReclaimStudentName(e.target.value); setReclaimFieldErrors(prev => ({ ...prev, name: "" })); }}
+                        onBlur={e => setReclaimFieldErrors(prev => ({ ...prev, name: validateReturnStudentName(e.target.value) || "" }))}
+                        placeholder="Full name"
+                        className={fInput}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(reclaimFieldErrors.name ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                      />
+                      {reclaimFieldErrors.name && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{reclaimFieldErrors.name}</p>}
+                    </div>
+                    <div>
+                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Roll Number <span style={{ color: "#ef4444" }}>*</span></label>
+                      <input
+                        id="reclaim-roll-no"
+                        type="text"
+                        disabled={isReclaimSaveLoading}
+                        value={reclaimRollNo}
+                        onChange={e => {
+                          const val = e.target.value.toLowerCase();
+                          setReclaimRollNo(val);
+                          setReclaimFieldErrors(prev => {
+                            const updatedErrors: Record<string, string> = { ...prev, roll: validateReturnRollNo(val) || "" };
+                            if (reclaimEmail) {
+                              updatedErrors.email = validateReturnEmail(reclaimEmail, val) || "";
+                            }
+                            return updatedErrors;
+                          });
+                        }}
+                        onBlur={e => {
+                          const val = e.target.value.trim().toLowerCase();
+                          setReclaimRollNo(val);
+                          setReclaimFieldErrors(prev => {
+                            const updatedErrors: Record<string, string> = { ...prev, roll: validateReturnRollNo(val) || "" };
+                            if (reclaimEmail) {
+                              updatedErrors.email = validateReturnEmail(reclaimEmail, val) || "";
+                            }
+                            return updatedErrors;
+                          });
+                        }}
+                        placeholder="e.g. 25bcaiot23"
+                        className={fInput}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(reclaimFieldErrors.roll ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                      />
+                      {reclaimFieldErrors.roll && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{reclaimFieldErrors.roll}</p>}
+                    </div>
+                  </div>
+
+                  {/* Phone + Email */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Phone Number <span style={{ color: "#ef4444" }}>*</span></label>
+                      <input
+                        id="reclaim-phone"
+                        type="tel"
+                        disabled={isReclaimSaveLoading}
+                        value={reclaimPhone}
+                        onChange={e => { setReclaimPhone(e.target.value); setReclaimFieldErrors(prev => ({ ...prev, phone: "" })); }}
+                        onBlur={e => setReclaimFieldErrors(prev => ({ ...prev, phone: validateReturnPhone(e.target.value) || "" }))}
+                        placeholder="+91 9876543210"
+                        className={fInput}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(reclaimFieldErrors.phone ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                      />
+                      {reclaimFieldErrors.phone && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{reclaimFieldErrors.phone}</p>}
+                    </div>
+                    <div>
+                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Email Address <span style={{ color: "#ef4444" }}>*</span></label>
+                      <input
+                        id="reclaim-email"
+                        type="email"
+                        disabled={isReclaimSaveLoading}
+                        value={reclaimEmail}
+                        onChange={e => {
+                          const val = e.target.value.toLowerCase().replace(/\s/g, "");
+                          setReclaimEmail(val);
+                          setReclaimFieldErrors(prev => ({ ...prev, email: validateReturnEmail(val, reclaimRollNo) || "" }));
+                        }}
+                        onBlur={e => {
+                          const val = e.target.value.trim().toLowerCase();
+                          setReclaimEmail(val);
+                          setReclaimFieldErrors(prev => ({ ...prev, email: validateReturnEmail(val, reclaimRollNo) || "" }));
+                        }}
+                        placeholder="rollno@kristujayanti.com"
+                        className={fInput}
+                        style={{ fontFamily: "DM Sans, sans-serif", ...(reclaimFieldErrors.email ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                      />
+                      {reclaimFieldErrors.email && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{reclaimFieldErrors.email}</p>}
+                    </div>
+                  </div>
+
+                  {/* Returned Date + Time */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <style>{`
+                      #reclaim-returned-date::-webkit-calendar-picker-indicator,
+                      #reclaim-returned-time::-webkit-calendar-picker-indicator {
+                        display: none !important;
+                        -webkit-appearance: none !important;
+                      }
+                    `}</style>
+                    <div>
+                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Date <span style={{ color: "#ef4444" }}>*</span></label>
+                      <input
+                        id="reclaim-returned-date"
+                        type="date"
+                        readOnly
+                        disabled={isReclaimSaveLoading}
+                        value={reclaimReturnedDate}
+                        max={getTodayDateString()}
+                        onChange={e => { setReclaimReturnedDate(e.target.value); setReclaimFieldErrors(prev => ({ ...prev, date: "", time: "" })); }}
+                        onBlur={e => {
+                          const d = e.target.value;
+                          setReclaimFieldErrors(prev => ({
+                            ...prev,
+                            date: validateReturnedDate(d, reclaimItem?.dateFound ?? "") || "",
+                            time: reclaimReturnedTime ? (validateReturnedTime(reclaimReturnedTime, d) || "") : prev.time,
+                          }));
+                        }}
+                        className={fInput}
+                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(reclaimFieldErrors.date ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                      />
+                      {reclaimFieldErrors.date && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{reclaimFieldErrors.date}</p>}
+                    </div>
+                    <div>
+                      <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif" }}>Returned Time <span style={{ color: "#ef4444" }}>*</span></label>
+                      <input
+                        id="reclaim-returned-time"
+                        type="time"
+                        readOnly
+                        disabled={isReclaimSaveLoading}
+                        value={reclaimReturnedTime}
+                        onChange={e => { setReclaimReturnedTime(e.target.value); setReclaimFieldErrors(prev => ({ ...prev, time: "" })); }}
+                        onBlur={e => setReclaimFieldErrors(prev => ({ ...prev, time: validateReturnedTime(e.target.value, reclaimReturnedDate) || "" }))}
+                        className={fInput}
+                        style={{ fontFamily: "DM Sans, sans-serif", colorScheme: "light", ...(reclaimFieldErrors.time ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                      />
+                      {reclaimFieldErrors.time && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{reclaimFieldErrors.time}</p>}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Remarks */}
+              <div>
+                <label className={fLabel} style={{ fontFamily: "DM Sans, sans-serif", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Remarks / Notes <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Optional)</span></span>
+                  <span style={{ color: reclaimRemarks.trim().length > 500 ? "#ef4444" : "#9ca3af", fontSize: 11, fontWeight: 400 }}>{reclaimRemarks.trim().length}/500</span>
+                </label>
+                <textarea
+                  id="reclaim-remarks"
+                  rows={3}
+                  disabled={isReclaimModalLoading || isReclaimSaveLoading}
+                  value={reclaimRemarks}
+                  onChange={e => { setReclaimRemarks(e.target.value); setReclaimFieldErrors(prev => ({ ...prev, remarks: "" })); }}
+                  placeholder="Add any additional notes or remarks…"
+                  className={fInput}
+                  style={{ fontFamily: "DM Sans, sans-serif", resize: "none", ...(reclaimFieldErrors.remarks ? { borderColor: "#ef4444", boxShadow: "0 0 0 2px #fee2e2" } : {}) }}
+                />
+                {reclaimFieldErrors.remarks && <p style={{ color: "#ef4444", fontSize: 11, marginTop: 4, fontFamily: "DM Sans, sans-serif" }}>{reclaimFieldErrors.remarks}</p>}
+              </div>
+
+              {/* Record Information */}
+              <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 10, padding: "14px 16px" }}>
+                <p style={{ fontFamily: "Outfit, sans-serif", fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Record Information
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {[
+                    { label: "Created At", value: reclaimItem.foundAt },
+                    { label: "Updated At", value: reclaimItem.lastUpdated || reclaimItem.foundAt },
+                    { label: "Updated By", value: "Admin" },
+                  ].map(row => (
+                    <div key={row.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: 12, color: "#6b7280" }}>{row.label}</span>
+                      <span style={{ fontFamily: "DM Sans, sans-serif", fontSize: 12, color: "#111827", fontWeight: 500 }}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal footer */}
+            <div style={{ padding: "0 24px 20px", display: "flex", gap: 10 }}>
+              <button
+                onClick={closeReclaimModal}
+                disabled={isReclaimSaveLoading}
+                style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: "1px solid #d1d5db", background: "white", color: "#374151", fontSize: 14, fontWeight: 500, fontFamily: "DM Sans, sans-serif", cursor: isReclaimSaveLoading ? "not-allowed" : "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { if (!isReclaimSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "#f9fafb"; }}
+                onMouseLeave={e => { if (!isReclaimSaveLoading) (e.currentTarget as HTMLButtonElement).style.background = "white"; }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveReclaim}
+                disabled={isReclaimSaveLoading || isReclaimModalLoading || !isReclaimValid || Object.values(reclaimFieldErrors).some(err => !!err)}
+                style={{
+                  flex: 1, padding: "10px 0", borderRadius: 9, border: "none",
+                  background: (!isReclaimSaveLoading && !isReclaimModalLoading && isReclaimValid && !Object.values(reclaimFieldErrors).some(err => !!err)) ? "#0891b2" : "#e5e7eb",
+                  color: (!isReclaimSaveLoading && !isReclaimModalLoading && isReclaimValid && !Object.values(reclaimFieldErrors).some(err => !!err)) ? "white" : "#9ca3af",
+                  fontSize: 14, fontWeight: 600, fontFamily: "DM Sans, sans-serif",
+                  cursor: (!isReclaimSaveLoading && !isReclaimModalLoading && isReclaimValid && !Object.values(reclaimFieldErrors).some(err => !!err)) ? "pointer" : "not-allowed",
+                  transition: "all 0.15s",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  opacity: isReclaimSaveLoading ? 0.85 : 1,
+                }}
+                onMouseEnter={e => { if (!isReclaimSaveLoading && !isReclaimModalLoading && isReclaimValid && !Object.values(reclaimFieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0e7490"; }}
+                onMouseLeave={e => { if (!isReclaimSaveLoading && !isReclaimModalLoading && isReclaimValid && !Object.values(reclaimFieldErrors).some(err => !!err)) (e.currentTarget as HTMLButtonElement).style.background = "#0891b2"; }}
+              >
+                {isReclaimSaveLoading ? (
+                  <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                    Continue →
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3591,7 +4161,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {["ITEM Name", "Lost Date", "Location", "Reporter", "Days Left", "Return"].map(h => (
+                {["ITEM Name", "Lost Date", "Location", "Reporter", "Return"].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-gray-600 font-semibold text-[11px] uppercase tracking-wide whitespace-nowrap" style={{ fontFamily: "DM Sans, sans-serif" }}>{h}</th>
                 ))}
               </tr>
@@ -3604,13 +4174,12 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
                     <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div><div className="h-3 bg-gray-100 rounded w-16 mt-1"></div></td>
                     <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-4 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div><div className="h-3 bg-gray-100 rounded w-16 mt-1"></div></td>
-                    <td className="px-4 py-4"><div className="h-6 bg-gray-200 rounded-full w-16"></div></td>
                     <td className="px-4 py-4"><div className="h-6 bg-gray-200 rounded w-12"></div></td>
                   </tr>
                 ))
               ) : filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-gray-500 text-sm" style={{ fontFamily: "DM Sans, sans-serif" }}>
+                  <td colSpan={5} className="px-4 py-10 text-center text-gray-500 text-sm" style={{ fontFamily: "DM Sans, sans-serif" }}>
                     No items found matching your search criteria
                   </td>
                 </tr>
@@ -3620,7 +4189,7 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
                   <td className="px-4 py-3 whitespace-nowrap text-gray-700">
                     {item.dateFound}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 max-w-[130px]">
+                  <td className="px-4 py-3 text-gray-600 max-w-[180px]">
                     <span className="truncate block">{item.location}</span>
                   </td>
                   <td className="px-4 py-3">
@@ -3630,9 +4199,6 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
                       <p className="text-[10px] text-gray-500">{item.reporterPhone}</p>
                       <p className="text-[10px] text-cyan-600">{item.reporterEmail}</p>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <CountdownChip dateStr={item.reportedAt} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
@@ -3761,7 +4327,6 @@ function FoundItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { i
   const filteredItems = items
     .filter(item => {
       if (item.status === "Returned") return false;
-      if (item.status === "Not Returned" && getDaysInfo(item.foundAt).isExpired) return false;
       const q = searchTerm.toLowerCase();
       const matchesSearch = !q ||
         item.name.toLowerCase().includes(q) ||
@@ -4667,6 +5232,7 @@ function AdminView({ onLogout }: { onLogout: () => void }) {
           setFoundAdminRecords={setSharedFoundItems}
           setLostAdminRecords={setSharedLostItems}
           onDispose={handleDispose}
+          onReturn={handleReturn}
         />
       );
     }
