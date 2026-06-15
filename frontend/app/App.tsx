@@ -3502,17 +3502,11 @@ function LostItemsPage({ items, setItems, onReturn, isLoading, onRefresh }: { it
     }
   };
 
-  const statsItems = items.filter(item => {
-    if (item.status === "Returned") return false;
-    const q = searchTerm.toLowerCase();
-    const matchesSearch = !q ||
-      item.name.toLowerCase().includes(q) ||
-      item.location.toLowerCase().includes(q) ||
-      item.reporterName.toLowerCase().includes(q) ||
-      item.reportedAt.toLowerCase().includes(q);
-    const matchesLocation = !filterLocation || item.location.toLowerCase().includes(filterLocation.toLowerCase());
-    return matchesSearch && matchesLocation;
-  });
+  // Statistics: always computed from the FULL dataset — unaffected by search/filter state
+  const statsItems = useMemo(() =>
+    items.filter(item => item.status !== "Returned"),
+    [items]
+  );
 
   return (
     <main className="flex-1 overflow-y-auto px-5 py-4 bg-gray-50">
