@@ -81,11 +81,48 @@ function mapLostItem(item: any): BrowseItem {
   };
 }
 
+function getFoundItemRefId(id: string, dateStr?: string | Date): string {
+  if (!id) return "FI-UNKNOWN";
+
+  let year = "2026";
+  if (dateStr) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      year = String(d.getFullYear());
+    } else {
+      const match = String(dateStr).match(/\d{4}/);
+      if (match) year = match[0];
+    }
+  } else if (/^[0-9a-fA-F]{24}$/.test(id)) {
+    const timestamp = parseInt(id.substring(0, 8), 16);
+    const date = new Date(timestamp * 1000);
+    if (!isNaN(date.getTime())) {
+      year = String(date.getFullYear());
+    }
+  }
+
+  if (/^[0-9a-fA-F]{24}$/.test(id)) {
+    const counterHex = id.substring(18, 24);
+    const counterVal = parseInt(counterHex, 16);
+    const formattedNum = String(counterVal % 1000000).padStart(4, "0");
+    return `FI-${year}-${formattedNum}`;
+  }
+
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i);
+    hash |= 0;
+  }
+  const numericHash = Math.abs(hash) % 10000;
+  const formattedNum = String(numericHash).padStart(4, "0");
+  return `FI-${year}-${formattedNum}`;
+}
+
 function mapFoundItem(item: any): BrowseItem {
   const id = itemId(item);
   return {
     id,
-    itemId: id,
+    itemId: getFoundItemRefId(id, item.foundAt || item.createdAt || item.dateFound),
     name: item.name || "Unknown Item",
     date: formatDateString(item.dateFound),
     location: item.location || "Unknown Location",
