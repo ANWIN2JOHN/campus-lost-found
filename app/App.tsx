@@ -333,7 +333,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "staffName":
         if (!isStudent) {
           if (!trimmed) return "Staff Name is required.";
-          if (isLost && trimmed.length < 12) return "Staff Name must be at least 12 characters.";
+          if (isLost && trimmed.length < 8) return "Staff Name must be at least 8 characters.";
           if (!isLost && trimmed.length < 8) return "Staff Name must be at least 8 characters.";
           if (trimmed.length > 100) return "Staff Name must not exceed 100 characters.";
           if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Staff Name can only contain letters, spaces, hyphens, and apostrophes.";
