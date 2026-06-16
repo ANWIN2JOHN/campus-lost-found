@@ -295,8 +295,8 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
       case "studentName":
         if (isStudent) {
           if (!trimmed) return "Student Name is required.";
-          if (isLost && trimmed.length < 12) return "Student Name must be at least 12 characters.";
-          if (!isLost && trimmed.length < 15) return "Student Name must be at least 15 characters.";
+          if (isLost && trimmed.length < 8) return "Student Name must be at least 8 characters.";
+          if (!isLost && trimmed.length < 8) return "Student Name must be at least 8 characters.";
           if (trimmed.length > 100) return "Student Name must not exceed 100 characters.";
           if (/^[0-9]+$/.test(trimmed)) return "Student Name cannot be numbers only.";
           if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Student Name can only contain letters, spaces, hyphens, and apostrophes.";
@@ -334,7 +334,7 @@ function UploadPage({ onBack, onItemCreated }: { onBack: () => void; onItemCreat
         if (!isStudent) {
           if (!trimmed) return "Staff Name is required.";
           if (isLost && trimmed.length < 12) return "Staff Name must be at least 12 characters.";
-          if (!isLost && trimmed.length < 10) return "Staff Name must be at least 10 characters.";
+          if (!isLost && trimmed.length < 8) return "Staff Name must be at least 8 characters.";
           if (trimmed.length > 100) return "Staff Name must not exceed 100 characters.";
           if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Staff Name can only contain letters, spaces, hyphens, and apostrophes.";
         }
@@ -2260,21 +2260,21 @@ function parseHistoryDateToMs(dt: string | undefined | null): number {
   const parts = dt.split(", ");
   const datePart = parts[0];
   const timePart = parts[1];
-  
+
   if (!datePart) return 0;
-  
+
   const dateTokens = datePart.split(" ").filter(Boolean);
   if (dateTokens.length < 3) return 0;
-  
+
   const day = Number(dateTokens[0]);
   const monthStr = dateTokens[1];
   const year = Number(dateTokens[2]);
-  
+
   const month = months[monthStr] !== undefined ? months[monthStr] : 0;
-  
+
   let hours = 0;
   let minutes = 0;
-  
+
   if (timePart) {
     const timeTokens = timePart.split(" ").filter(Boolean);
     if (timeTokens[0]) {
@@ -2286,7 +2286,7 @@ function parseHistoryDateToMs(dt: string | undefined | null): number {
     if (ampm === "PM" && hours !== 12) hours += 12;
     if (ampm === "AM" && hours === 12) hours = 0;
   }
-  
+
   return new Date(year, month, day, hours, minutes).getTime();
 }
 
