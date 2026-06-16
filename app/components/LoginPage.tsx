@@ -215,28 +215,18 @@ export default function LoginPage({ onLogin, onBack }: LoginPageProps) {
               </div>
             </form>
 
-            {/* Credentials hint / Validation / Error */}
-            <div
-              className="mt-6 rounded-2xl p-4"
-              style={
-                error
-                  ? { background: "#fff1f2", border: "1px solid #fecdd3" }
-                  : { background: "#f0f9ff", border: "1px solid #e0f2fe" }
-              }
-            >
-              {error ? (
+            {/* Error display */}
+            {error && (
+              <div
+                className="mt-6 rounded-2xl p-4"
+                style={{ background: "#fff1f2", border: "1px solid #fecdd3" }}
+              >
                 <div className="flex items-start gap-2">
                   <AlertCircle size={15} className="text-red-500 mt-0.5 shrink-0" />
                   <p className="text-sm text-red-700" style={{ fontFamily: "DM Sans, sans-serif" }}>{error}</p>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-700 leading-relaxed" style={{ fontFamily: "DM Sans, sans-serif" }}>
-                  <span className="font-bold text-gray-800">Admin Credentials:</span><br />
-                  Email: admin@campus.edu<br />
-                  Password: admin123
-                </p>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

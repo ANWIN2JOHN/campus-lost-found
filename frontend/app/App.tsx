@@ -1293,6 +1293,20 @@ function matchesSearch(item: BrowseItem, query: string): boolean {
   return false;
 }
 
+function parseDateForSorting(item: BrowseItem): number {
+  if (item.reportedAt) {
+    const d = new Date(item.reportedAt);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  const d = new Date(item.date);
+  if (!isNaN(d.getTime())) return d.getTime();
+  try {
+    return parseDateForCountdown(item.date).getTime();
+  } catch {
+    return 0;
+  }
+}
+
 function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | "lost" | "found" }) {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1426,11 +1440,22 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
 
   // Client-side filtering: countdown status + Others keyword + intelligent search synonym matching
   const filteredItems = useMemo(() => {
-    return backendItems.filter((item) => {
+    const filtered = backendItems.filter((item) => {
       // Countdown status filter
       const matchesCountdown = !countdownFilter ||
         getDaysInfo(item.reportedAt || item.date).countdownStatus === countdownFilter;
       if (!matchesCountdown) return false;
+
+      // Category filter
+      if (selectedCategory) {
+        if (selectedCategory === "Others") {
+          const predefinedNames = ["Bags & Backpacks", "Water Bottles", "Electronics", "Books & Notebooks", "Keys & Keychains", "Accessories", "Eyewear"];
+          const isPredefined = predefinedNames.includes(item.category);
+          if (isPredefined) return false;
+        } else {
+          if (item.category !== selectedCategory) return false;
+        }
+      }
 
       // "Others" category keyword sub-filter (searches against the displayed category/customCategory text)
       if (selectedCategory === "Others" && othersKeyword.trim().length >= 1) {
@@ -1446,6 +1471,11 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
       }
 
       return true;
+    });
+
+    // Default reverse chronological sorting (newest first)
+    return filtered.sort((a, b) => {
+      return parseDateForSorting(b) - parseDateForSorting(a);
     });
   }, [backendItems, countdownFilter, selectedCategory, othersKeyword, debouncedSearch]);
 

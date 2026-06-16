@@ -1214,6 +1214,98 @@ function PublicBrowseView({ type, onBack }: { type: "lost" | "found"; onBack: ()
 
 const BROWSE_PAGE_SIZE = 6;
 
+// ─── Synonym map for intelligent item name matching ────────────────────────
+const ITEM_SYNONYMS: Record<string, string[]> = {
+  bag: ["backpack", "sack", "pouch", "tote", "knapsack", "haversack", "bagpack", "school bag", "travel bag", "handbag", "satchel", "kit bag", "gym bag", "skybag", "laptop bag", "duffle", "duffel"],
+  backpack: ["bag", "school bag", "travel bag", "knapsack", "haversack", "bagpack", "rucksack", "skybag", "campus bag"],
+  phone: ["mobile", "cell", "smartphone", "handphone", "iphone", "android", "cellphone", "handset"],
+  mobile: ["phone", "cell", "smartphone", "handphone", "iphone", "android", "cellphone"],
+  wallet: ["purse", "billfold", "card holder", "money clip"],
+  bottle: ["water bottle", "flask", "tumbler", "sipper", "thermos", "canteen"],
+  "water bottle": ["bottle", "flask", "tumbler", "sipper"],
+  glasses: ["spectacles", "specs", "eyeglasses", "sunglasses", "shades", "goggles", "reading glasses", "frames"],
+  spectacles: ["glasses", "specs", "eyeglasses", "frames"],
+  keys: ["key", "keychain", "key ring", "keyring", "locket", "lanyard key"],
+  key: ["keys", "keychain", "key ring", "keyring"],
+  charger: ["adapter", "cable", "power adapter", "charging cable", "plug"],
+  earphones: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds", "earphone"],
+  earphone: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds", "earphones"],
+  earbuds: ["earphone", "earphones", "headphones", "headset", "airpods", "buds"],
+  earbud: ["earphone", "earphones", "headphones", "headset", "airpods", "buds"],
+  headphones: ["earphones", "earbuds", "headset", "over-ear", "headphone"],
+  headphone: ["earphones", "earbuds", "headset", "over-ear", "headphones"],
+  umbrella: ["raincoat", "rain cover"],
+  book: ["notebook", "textbook", "notes", "journal", "diary", "workbook", "books"],
+  books: ["notebook", "textbook", "notes", "journal", "diary", "workbook", "book"],
+  notebook: ["book", "books", "notes", "journal", "copy", "notepad", "notebooks"],
+  notebooks: ["book", "books", "notes", "journal", "copy", "notepad", "notebook"],
+  pen: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter", "pens"],
+  pens: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter", "pen"],
+  pencil: ["pen", "eraser", "sketch", "pencils"],
+  pencils: ["pen", "eraser", "sketch", "pencil"],
+  calculator: ["calc", "scientific calculator"],
+  laptop: ["computer", "pc", "macbook", "notebook computer", "chromebook", "laptops"],
+  laptops: ["computer", "pc", "macbook", "notebook computer", "chromebook", "laptop"],
+  watch: ["wristwatch", "timepiece", "clock", "smartwatch", "watches"],
+  watches: ["wristwatch", "timepiece", "clock", "smartwatch", "watch"],
+  id: ["id card", "identity card", "student id", "college id", "college card", "access card", "pass"],
+  "id card": ["identity card", "student id", "college card", "access card", "id"],
+  earring: ["earrings", "stud", "hoop", "jewelry"],
+  earrings: ["earring", "stud", "hoop", "jewelry"],
+  necklace: ["chain", "pendant", "locket", "jewelry"],
+  ring: ["band", "finger ring", "jewelry", "rings"],
+  rings: ["band", "finger ring", "jewelry", "ring"],
+  bracelet: ["bangle", "wristband", "jewelry"],
+};
+
+function getSynonymTerms(word: string): string[] {
+  const lower = word.toLowerCase();
+  const synonyms = ITEM_SYNONYMS[lower] || [];
+  const reverseMatches = Object.entries(ITEM_SYNONYMS)
+    .filter(([, syns]) => syns.some(s => s.toLowerCase() === lower))
+    .map(([key]) => key);
+  return [lower, ...synonyms.map(s => s.toLowerCase()), ...reverseMatches];
+}
+
+function matchesSearch(item: BrowseItem, query: string): boolean {
+  if (!query) return true;
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const haystack = [
+    item.name,
+    item.description,
+    item.category,
+  ].join(" ").toLowerCase();
+
+  if (haystack === q) return true;
+  if (haystack.includes(q)) return true;
+
+  const queryWords = q.split(/\s+/).filter(Boolean);
+  if (queryWords.length > 1 && queryWords.every(w => haystack.includes(w))) return true;
+
+  for (const word of queryWords) {
+    const terms = getSynonymTerms(word);
+    if (terms.some(term => haystack.includes(term))) return true;
+  }
+
+  return false;
+}
+
+function parseDateForSorting(item: BrowseItem): number {
+  if (item.reportedAt) {
+    const d = new Date(item.reportedAt);
+    if (!isNaN(d.getTime())) return d.getTime();
+  }
+  const d = new Date(item.date);
+  if (!isNaN(d.getTime())) return d.getTime();
+  try {
+    return parseDateForCountdown(item.date).getTime();
+  } catch {
+    return 0;
+  }
+}
+
 function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | "lost" | "found" }) {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1248,10 +1340,8 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
 
     if (trimmed.length < 3) {
       setSearchError("Please enter at least 3 characters to search.");
-      const handler = setTimeout(() => {
-        setDebouncedSearch("");
-      }, 400);
-      return () => clearTimeout(handler);
+      // Don't update debouncedSearch for 1 or 2 characters to avoid triggering API call
+      return;
     }
 
     setSearchError(null);
@@ -1315,11 +1405,35 @@ function CombinedItemsPage({ initialFilter = "all" }: { initialFilter?: "all" | 
   }, [initialFilter, debouncedSearch, selectedCategory, debouncedLocation, dateFromQuery, dateTo]);
 
   const filteredItems = useMemo(() => {
-    return backendItems.filter((item) => {
+    const filtered = backendItems.filter((item) => {
+      // Countdown status filter
       const matchesCountdown = !countdownFilter || getDaysInfo(item.reportedAt || item.date).countdownStatus === countdownFilter;
-      return matchesCountdown;
+      if (!matchesCountdown) return false;
+
+      // Category filter
+      if (selectedCategory) {
+        if (selectedCategory === "Others") {
+          const predefinedNames = ["Bags & Backpacks", "Water Bottles", "Electronics", "Books & Notebooks", "Keys & Keychains", "Accessories", "Eyewear"];
+          const isPredefined = predefinedNames.includes(item.category);
+          if (isPredefined) return false;
+        } else {
+          if (item.category !== selectedCategory) return false;
+        }
+      }
+
+      // Client-side intelligent search synonyms & keywords
+      if (debouncedSearch) {
+        if (!matchesSearch(item, debouncedSearch)) return false;
+      }
+
+      return true;
     });
-  }, [backendItems, countdownFilter]);
+
+    // Default reverse chronological sorting (newest first)
+    return filtered.sort((a, b) => {
+      return parseDateForSorting(b) - parseDateForSorting(a);
+    });
+  }, [backendItems, countdownFilter, selectedCategory, debouncedSearch]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(filteredItems.length / BROWSE_PAGE_SIZE)), [filteredItems.length]);
   const safePage = Math.min(currentPage, totalPages);

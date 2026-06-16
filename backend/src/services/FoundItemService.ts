@@ -34,6 +34,103 @@ interface ReportFoundItemInput {
   imageUrl?: string;
 }
 
+const PREDEFINED_CATEGORIES = [
+  "Bags & Backpacks",
+  "Water Bottles",
+  "Electronics",
+  "Books & Notebooks",
+  "Keys & Keychains",
+  "Accessories",
+  "Eyewear",
+];
+
+const SYNONYM_MAP: Record<string, string[]> = {
+  bag: ["backpack", "sack", "pouch", "tote", "knapsack", "haversack", "bagpack", "school bag", "travel bag", "handbag", "satchel", "kit bag", "gym bag", "skybag", "laptop bag", "duffle", "duffel"],
+  backpack: ["bag", "school bag", "travel bag", "knapsack", "haversack", "bagpack", "rucksack", "skybag", "campus bag"],
+  phone: ["mobile", "cell", "smartphone", "handphone", "iphone", "android", "cellphone", "handset"],
+  mobile: ["phone", "cell", "smartphone", "handphone", "iphone", "android", "cellphone"],
+  wallet: ["purse", "billfold", "card holder", "money clip"],
+  bottle: ["water bottle", "flask", "tumbler", "sipper", "thermos", "canteen"],
+  "water bottle": ["bottle", "flask", "tumbler", "sipper"],
+  glasses: ["spectacles", "specs", "eyeglasses", "sunglasses", "shades", "goggles", "reading glasses", "frames"],
+  spectacles: ["glasses", "specs", "eyeglasses", "frames"],
+  keys: ["key", "keychain", "key ring", "keyring", "locket", "lanyard key"],
+  key: ["keys", "keychain", "key ring", "keyring"],
+  charger: ["adapter", "cable", "power adapter", "charging cable", "plug"],
+  earphones: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds", "earphone"],
+  earphone: ["earbuds", "headphones", "headset", "airpods", "earpiece", "in-ear", "buds", "earphones"],
+  earbuds: ["earphone", "earphones", "headphones", "headset", "airpods", "buds"],
+  earbud: ["earphone", "earphones", "headphones", "headset", "airpods", "buds"],
+  headphones: ["earphones", "earbuds", "headset", "over-ear", "headphone"],
+  headphone: ["earphones", "earbuds", "headset", "over-ear", "headphones"],
+  umbrella: ["raincoat", "rain cover"],
+  book: ["notebook", "textbook", "notes", "journal", "diary", "workbook", "books"],
+  books: ["notebook", "textbook", "notes", "journal", "diary", "workbook", "book"],
+  notebook: ["book", "books", "notes", "journal", "copy", "notepad", "notebooks"],
+  notebooks: ["book", "books", "notes", "journal", "copy", "notepad", "notebook"],
+  pen: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter", "pens"],
+  pens: ["pencil", "marker", "ballpoint", "ink pen", "sketch pen", "highlighter", "pen"],
+  pencil: ["pen", "eraser", "sketch", "pencils"],
+  pencils: ["pen", "eraser", "sketch", "pencil"],
+  calculator: ["calc", "scientific calculator"],
+  laptop: ["computer", "pc", "macbook", "notebook computer", "chromebook", "laptops"],
+  laptops: ["computer", "pc", "macbook", "notebook computer", "chromebook", "laptop"],
+  watch: ["wristwatch", "timepiece", "clock", "smartwatch", "watches"],
+  watches: ["wristwatch", "timepiece", "clock", "smartwatch", "watch"],
+  id: ["id card", "identity card", "student id", "college id", "college card", "access card", "pass"],
+  "id card": ["identity card", "student id", "college card", "access card", "id"],
+  earring: ["earrings", "stud", "hoop", "jewelry"],
+  earrings: ["earring", "stud", "hoop", "jewelry"],
+  necklace: ["chain", "pendant", "locket", "jewelry"],
+  ring: ["band", "finger ring", "jewelry", "rings"],
+  rings: ["band", "finger ring", "jewelry", "ring"],
+  bracelet: ["bangle", "wristband", "jewelry"],
+};
+
+function getExpandedSearchRegex(query: string): RegExp {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const terms = new Set<string>();
+
+  for (const word of words) {
+    terms.add(word);
+    
+    // Add simple singular/plural variations
+    if (word.endsWith("s") && word.length > 3) {
+      terms.add(word.slice(0, -1));
+    } else if (!word.endsWith("s")) {
+      terms.add(word + "s");
+    }
+
+    // Add synonyms
+    const synonyms = SYNONYM_MAP[word] || [];
+    for (const syn of synonyms) {
+      terms.add(syn);
+      if (syn.endsWith("s") && syn.length > 3) {
+        terms.add(syn.slice(0, -1));
+      } else if (!syn.endsWith("s")) {
+        terms.add(syn + "s");
+      }
+    }
+
+    // Reverse synonym matches
+    for (const [key, val] of Object.entries(SYNONYM_MAP)) {
+      if (val.includes(word)) {
+        terms.add(key);
+        if (key.endsWith("s") && key.length > 3) {
+          terms.add(key.slice(0, -1));
+        } else if (!key.endsWith("s")) {
+          terms.add(key + "s");
+        }
+      }
+    }
+  }
+
+  const pattern = Array.from(terms)
+    .map(term => term.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"))
+    .join("|");
+  return new RegExp(pattern, "i");
+}
+
 export class FoundItemService {
   static async reportItem(data: ReportFoundItemInput): Promise<IFoundItem> {
     const contact = this.buildContact(data);
@@ -64,22 +161,8 @@ export class FoundItemService {
     // Build filter
     const filter: any = { status: query.status || ITEM_STATUS.NOT_RETURNED };
 
-    if (query.category) {
-      filter.category = query.category;
-    }
-
     if (query.location) {
       filter.location = new RegExp(query.location, "i");
-    }
-
-    if (query.search) {
-      const searchRegex = new RegExp(query.search, "i");
-      filter.$or = [
-        { name: searchRegex },
-        { description: searchRegex },
-        { location: searchRegex },
-        { "contact.studentName": searchRegex },
-      ];
     }
 
     if (query.dateFrom || query.dateTo) {
@@ -92,9 +175,46 @@ export class FoundItemService {
       }
     }
 
+    const andConditions: any[] = [];
+
+    if (query.category) {
+      if (query.category === "Others") {
+        andConditions.push({
+          $or: [
+            { category: "Others", customCategory: { $nin: PREDEFINED_CATEGORIES } },
+            { category: "Others", customCategory: { $exists: false } },
+            { category: "Others", customCategory: "" }
+          ]
+        });
+      } else {
+        andConditions.push({
+          $or: [
+            { category: query.category },
+            { category: "Others", customCategory: query.category }
+          ]
+        });
+      }
+    }
+
+    if (query.search) {
+      const searchRegex = getExpandedSearchRegex(query.search);
+      andConditions.push({
+        $or: [
+          { name: searchRegex },
+          { description: searchRegex },
+          { location: searchRegex },
+          { "contact.studentName": searchRegex },
+        ]
+      });
+    }
+
+    if (andConditions.length > 0) {
+      filter.$and = andConditions;
+    }
+
     // Execute query
     const items = await FoundItem.find(filter)
-      .sort({ dateFound: -1 })
+      .sort({ dateFound: -1, foundAt: -1 })
       .skip(skip)
       .limit(limit);
 
