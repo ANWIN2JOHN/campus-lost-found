@@ -2314,23 +2314,43 @@ function ItemHistoryPage({
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  // Dedicated stable statistics state:
-  const [statistics, setStatistics] = useState<{
-    totalReturned: number;
-    lostNotFound: number;
-    disposedItems: number;
-    foundReturned: number;
-  } | null>(null);
   const [isStatsLoading, setIsStatsLoading] = useState(true);
 
   // Local state for dynamically loaded history data:
   const [localReturnedLostRecords, setLocalReturnedLostRecords] = useState<AdminLostItem[]>([]);
   const [localReturnedFoundRecords, setLocalReturnedFoundRecords] = useState<AdminFoundItem[]>([]);
-  const [localNotReturnedLostRecords, setLocalNotReturnedLostRecords] = useState<AdminLostItem[]>([]);
   const [localDisposedHistory, setLocalDisposedHistory] = useState<DisposedRecord[]>([]);
   const [localReturnedHistory, setLocalReturnedHistory] = useState<ReturnedHistoryRecord[]>([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
   const isInitialMount = useRef(true);
+
+  // Local derived state for not returned lost items matching the current academic year:
+  const localNotReturnedLostRecords = useMemo(() => {
+    const startStr = getCurrentAcademicYearStartDateString();
+    const ayStartDate = new Date(startStr);
+    ayStartDate.setHours(0, 0, 0, 0);
+
+    return lostAdminRecords.filter(i => {
+      const d = parseDateForCountdown(i.reportedAt);
+      return d >= ayStartDate;
+    });
+  }, [lostAdminRecords]);
+
+  // Derived statistics: always calculated reactively from current history data
+  const statistics = useMemo(() => {
+    if (isStatsLoading || isApiLoading) return null;
+    const totalReturned = localReturnedHistory.length + localReturnedLostRecords.length + localReturnedFoundRecords.length;
+    const lostNotFound = localNotReturnedLostRecords.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
+    const disposedItems = localDisposedHistory.length;
+    const foundReturned = localReturnedFoundRecords.length + localReturnedHistory.filter(r => r.type === "Found").length;
+
+    return {
+      totalReturned,
+      lostNotFound,
+      disposedItems,
+      foundReturned,
+    };
+  }, [isStatsLoading, isApiLoading, localReturnedHistory, localReturnedLostRecords, localReturnedFoundRecords, localNotReturnedLostRecords]);
 
   // Debounced filters & Local filtering loading state:
   const [isFiltering, setIsFiltering] = useState(false);
@@ -2348,10 +2368,9 @@ function ItemHistoryPage({
       setIsStatsLoading(true);
       setIsApiLoading(true);
       try {
-        const [returnedLost, returnedFound, notReturnedLost, history] = await Promise.all([
+        const [returnedLost, returnedFound, history] = await Promise.all([
           getAdminLostItems("Returned"),
           getAdminFoundItems("Returned"),
-          getAdminLostItems("Not Returned"),
           getHistory(),
         ]);
         if (active) {
@@ -2367,10 +2386,6 @@ function ItemHistoryPage({
             const d = parseDateForCountdown(i.returnedDate || i.lastUpdated);
             return d >= ayStartDate;
           });
-          const filteredNotReturnedLost = notReturnedLost.filter(i => {
-            const d = parseDateForCountdown(i.reportedAt);
-            return d >= ayStartDate;
-          });
           const filteredHistoryReturned = history.returned.filter(i => {
             const d = parseDateForCountdown(i.closedDate);
             return d >= ayStartDate;
@@ -2382,22 +2397,8 @@ function ItemHistoryPage({
 
           setLocalReturnedLostRecords(filteredReturnedLost);
           setLocalReturnedFoundRecords(filteredReturnedFound);
-          setLocalNotReturnedLostRecords(filteredNotReturnedLost);
           setLocalReturnedHistory(filteredHistoryReturned);
           setLocalDisposedHistory(filteredHistoryDisposed);
-
-          // Compute statistics
-          const totalReturned = filteredHistoryReturned.length + filteredReturnedLost.length + filteredReturnedFound.length;
-          const lostNotFound = filteredNotReturnedLost.filter(i => getDaysInfo(i.reportedAt).isExpired).length;
-          const disposedItems = filteredHistoryDisposed.length;
-          const foundReturned = filteredReturnedFound.length + filteredHistoryReturned.filter(r => r.type === "Found").length;
-
-          setStatistics({
-            totalReturned,
-            lostNotFound,
-            disposedItems,
-            foundReturned,
-          });
         }
       } catch (error) {
         console.error("Failed to load history initial data", error);

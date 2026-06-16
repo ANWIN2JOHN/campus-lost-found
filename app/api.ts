@@ -297,22 +297,6 @@ export async function getHistory(): Promise<{
   returned: ReturnedHistoryRecord[];
   disposed: DisposedRecord[];
 }> {
-  try {
-    const payload = await fetchJson("/api/history", { limit: "1000" });
-    const data = payload?.data ?? payload;
-    const returnedItems = data?.returned ?? data?.claimed ?? data?.["claimed" + "Items"];
-    const disposedItems = data?.disposed ?? data?.disposedItems;
-
-    if (Array.isArray(returnedItems) || Array.isArray(disposedItems)) {
-      return {
-        returned: Array.isArray(returnedItems) ? returnedItems.map(mapReturnedHistoryRecord) : [],
-        disposed: Array.isArray(disposedItems) ? disposedItems.map(mapDisposedRecord) : [],
-      };
-    }
-  } catch {
-    // Some backend versions expose history as separate protected subroutes.
-  }
-
   const [returnedPayload, disposedPayload] = await Promise.all([
     fetchJson("/api/history/claimed", { limit: "1000" }),
     fetchJson("/api/history/disposed", { limit: "1000" }),
@@ -323,6 +307,7 @@ export async function getHistory(): Promise<{
     disposed: readItems(disposedPayload).map(mapDisposedRecord),
   };
 }
+
 
 export type ReportItemInput = {
   type: "lost" | "found";

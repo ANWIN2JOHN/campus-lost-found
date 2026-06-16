@@ -117,10 +117,10 @@ export default function LandingPage({ onBrowseFound, onAdminLogin }: LandingPage
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://campus-lost-found-ghvc.onrender.com";
 
     Promise.all([
-      fetch(`${API_BASE_URL}/api/items/lost?limit=1000&status=Not%20Returned`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/items/found?limit=1000&status=Not%20Returned`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/items/lost?limit=1000&status=Returned`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/api/items/found?limit=1000&status=Returned`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/api/items/lost?limit=1&status=Not%20Returned`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/api/items/found?limit=1&status=Not%20Returned`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/api/items/lost?limit=1&status=Returned`).then(r => r.json()),
+      fetch(`${API_BASE_URL}/api/items/found?limit=1&status=Returned`).then(r => r.json()),
     ])
       .then(([lostActive, foundActive, lostReturned, foundReturned]) => {
         const lostActiveTotal = lostActive?.data?.total ?? lostActive?.data?.data?.length ?? 0;
