@@ -40,9 +40,9 @@ function StatRing({ pct, color, label, animate = false }: { pct: number; color: 
   return (
     <div className="relative shrink-0" style={{ width: 56, height: 56 }}>
       <svg width="56" height="56" style={{ transform: "rotate(-90deg)" }}>
-      <circle cx="28" cy="28" r={r} fill="none" stroke="#e2e8f0" strokeWidth="4.5" />
-      <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4.5"
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+        <circle cx="28" cy="28" r={r} fill="none" stroke="#e2e8f0" strokeWidth="4.5" />
+        <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4.5"
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
       </svg>
       <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold"
         style={{ color, fontFamily: "DM Sans, sans-serif" }}>
@@ -78,8 +78,8 @@ function AnimatedCounter({ value, animate = false }: { value: number; animate?: 
 }
 
 const howItWorks = [
-  { icon: <Search size={24} />, step: "01", title: "Search & Browse", desc: "Explore our database of lost and found items. Filter by location, date, and category.", g: "from-cyan-500 to-teal-600", bg: "from-cyan-50 to-teal-50", border: "border-cyan-100" },
-  { icon: <MapPin size={24} />, step: "02", title: "Locate Collection Point", desc: "Each item shows exactly where it's stored — Security Office, Admin Block, Library, and more.", g: "from-emerald-500 to-green-600", bg: "from-emerald-50 to-green-50", border: "border-emerald-100" },
+  { icon: <Search size={24} />, step: "01", title: "Search & Browse", desc: "Explore our database of lost and found items. Search by location, date, and category.", g: "from-cyan-500 to-teal-600", bg: "from-cyan-50 to-teal-50", border: "border-cyan-100" },
+  { icon: <MapPin size={24} />, step: "02", title: "Locate Collection Point", desc: "Each item shows exactly where it's stored — Main Block, Admin Block, Humanities Block.", g: "from-emerald-500 to-green-600", bg: "from-emerald-50 to-green-50", border: "border-emerald-100" },
   { icon: <Package size={24} />, step: "03", title: "Collect Your Item", desc: "Bring your student ID to the designated office to verify ownership and collect your item.", g: "from-amber-500 to-orange-500", bg: "from-amber-50 to-orange-50", border: "border-amber-100" },
 ];
 
@@ -364,7 +364,7 @@ export default function LandingPage({ onBrowseFound, onAdminLogin }: LandingPage
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 flex items-center justify-center shadow-md shrink-0">
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M9 7h2v2H9V7zm0 4h2v4H9v-4zm1-9C5.03 2 2 5.03 2 10s3.03 8 8 8 8-3.03 8-8-3.03-8-8-8zm0 14.4A6.4 6.4 0 1 1 10 3.6a6.4 6.4 0 0 1 0 12.8z" fill="white"/>
+                    <path d="M9 7h2v2H9V7zm0 4h2v4H9v-4zm1-9C5.03 2 2 5.03 2 10s3.03 8 8 8 8-3.03 8-8-3.03-8-8-8zm0 14.4A6.4 6.4 0 1 1 10 3.6a6.4 6.4 0 0 1 0 12.8z" fill="white" />
                   </svg>
                 </div>
                 <p className="text-sm font-bold text-amber-700 uppercase tracking-widest" style={{ fontFamily: "DM Sans, sans-serif" }}>

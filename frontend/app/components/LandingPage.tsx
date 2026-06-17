@@ -81,8 +81,8 @@ function AnimatedCounter({ value, animate }: { value: number; animate: boolean }
 
 
 const howItWorks = [
-  { icon: <Search size={24} />, step: "01", title: "Search & Browse", desc: "Explore our database of lost and found items. Filter by location, date, and category.", g: "from-cyan-500 to-teal-600", bg: "from-cyan-50 to-teal-50", border: "border-cyan-100" },
-  { icon: <MapPin size={24} />, step: "02", title: "Locate Collection Point", desc: "Each item shows exactly where it's stored — Security Office, Admin Block, Library, and more.", g: "from-emerald-500 to-green-600", bg: "from-emerald-50 to-green-50", border: "border-emerald-100" },
+  { icon: <Search size={24} />, step: "01", title: "Search & Browse", desc: "Explore our database of lost and found items. Search by location, date, and category.", g: "from-cyan-500 to-teal-600", bg: "from-cyan-50 to-teal-50", border: "border-cyan-100" },
+  { icon: <MapPin size={24} />, step: "02", title: "Locate Collection Point", desc: "Each item shows exactly where it's stored — Main Block, Admin Block, Humanities Block.", g: "from-emerald-500 to-green-600", bg: "from-emerald-50 to-green-50", border: "border-emerald-100" },
   { icon: <Package size={24} />, step: "03", title: "Collect Your Item", desc: "Bring your student ID to the designated office to verify ownership and collect your item.", g: "from-amber-500 to-orange-500", bg: "from-amber-50 to-orange-50", border: "border-amber-100" },
 ];
 
