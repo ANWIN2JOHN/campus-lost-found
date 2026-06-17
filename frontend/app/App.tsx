@@ -3894,7 +3894,7 @@ function CountdownSummaryCards({ items, dateField, isLoading }: { items: Array<R
   );
   const cards = [
     { label: "Total Unclaimed", value: stats.active + stats.expiring + stats.last10, cls: "bg-cyan-50 border-cyan-200", txt: "text-cyan-700", dot: "bg-cyan-400" },
-    { label: "Expiring in 30 Days", value: stats.expiring + stats.last10, cls: "bg-amber-50 border-amber-200", txt: "text-amber-700", dot: "bg-amber-400" },
+    { label: "Expiring in 60 Days", value: stats.expiring + stats.last10, cls: "bg-amber-50 border-amber-200", txt: "text-amber-700", dot: "bg-amber-400" },
     { label: "Last 10 Days", value: stats.last10, cls: "bg-red-50 border-red-200", txt: "text-red-700", dot: "bg-red-500" },
     { label: "Expired – Awaiting Removal", value: stats.expired, cls: "bg-gray-50 border-gray-200", txt: "text-gray-600", dot: "bg-gray-400" },
   ];
