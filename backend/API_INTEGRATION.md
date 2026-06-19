@@ -417,7 +417,7 @@ Returns lost items that have exceeded 60-day claim period.
 ```typescript
 {
   "success": false,
-  "message": "Invalid email or password"
+  "message": "Invalid password"
 }
 ```
 
