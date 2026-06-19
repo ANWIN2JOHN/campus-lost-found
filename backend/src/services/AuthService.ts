@@ -24,13 +24,13 @@ export class AuthService {
     const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
-      throw new AuthenticationError("Invalid email or password");
+      throw new AuthenticationError("Invalid password");
     }
 
     const isPasswordValid = await user.comparePassword(password);
 
     if (!isPasswordValid) {
-      throw new AuthenticationError("Invalid email or password");
+      throw new AuthenticationError("Invalid password");
     }
 
     const accessToken = this.generateAccessToken(

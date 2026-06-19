@@ -57,7 +57,7 @@ export const PAGINATION = {
 } as const;
 
 export const ERROR_MESSAGES = {
-  INVALID_CREDENTIALS: "Invalid email or password",
+  INVALID_CREDENTIALS: "Invalid password",
   UNAUTHORIZED: "Unauthorized access",
   FORBIDDEN: "Forbidden",
   NOT_FOUND: "Resource not found",
