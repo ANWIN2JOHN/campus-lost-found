@@ -415,6 +415,13 @@ Returns lost items that have exceeded 60-day claim period.
 
 ### Authentication Error
 ```typescript
+// If email is not found
+{
+  "success": false,
+  "message": "Invalid email or password"
+}
+
+// If password is incorrect
 {
   "success": false,
   "message": "Invalid password"
